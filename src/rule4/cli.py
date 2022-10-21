@@ -23,6 +23,7 @@ class TableApp(App):
         r = engine_memory.execute(q)
         table.add_columns(*r.keys())
         table.add_rows(r)
+        table.focus()
 
 def main():
     print("hello from rule4.cli.main")
