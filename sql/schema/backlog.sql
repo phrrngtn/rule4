@@ -8,9 +8,12 @@
 INSERT OR REPLACE INTO codegen_template(family, [name], template)
 VALUES('TEMPORAL', 'create_temporal_backlog','
 
+DROP TABLE IF EXISTS {{backlog}};
+
 CREATE TABLE {{backlog}} (
     ts timestamp NOT NULL,
     operation char(1) NOT NULL,
+    {% for c in primary_key_columns%} [{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
 );
 
@@ -27,10 +30,12 @@ AFTER INSERT ON  {{object_name}}
 BEGIN INSERT INTO {{backlog}}(
     ts, 
     operation, 
+    {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
         time_t_ms(),
         ''I'',
+        {% for c in primary_key_columns%} new.[{{c}}],{% endfor%}
         {% for c in columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
@@ -41,11 +46,13 @@ CREATE TRIGGER {{object_name}}_td_bl_after_update
 AFTER UPDATE ON  {{object_name}}
 BEGIN INSERT INTO {{backlog}}(
     ts, 
-    operation, 
+    operation,
+    {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
         time_t_ms(),
         ''U'',
+        {% for c in primary_key_columns%} new.[{{c}}],{% endfor%}
         {% for c in columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
@@ -57,10 +64,12 @@ AFTER DELETE ON  {{object_name}}
 BEGIN INSERT INTO {{backlog}}(
     ts, 
     operation, 
+    {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
         time_t_ms(),
         ''D'',
+        {% for c in primary_key_columns%} old.[{{c}}],{% endfor%}
         {% for c in columns%} old.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
@@ -108,4 +117,14 @@ CREATE VIRTUAL TABLE create_temporal_backlog_t USING define(
          ) 
      SELECT ddl FROM DDL
      )
+);
+
+
+DROP TABLE IF EXISTS rule4_temporal_backlog;
+
+CREATE TABLE rule4_temporal_backlog([object_name] sysname NOT NULL,
+                                    [backlog_name] sysname NOT NULL,
+                                    primary_key_columns JSON NOT NULL,
+                                    [columns] JSON NOT NULL,
+                                    PRIMARY KEY([object_name])
 );

@@ -11,6 +11,33 @@ SELECT define("time_t_ms", 'format("%d.%d", strftime("%s","now"),substr(strftime
 SELECT define("time_t", 'format("%d", strftime("%s","now"))');
 
 
+create table nums (i integer primary key);
+
+-- From https://stackoverflow.com/a/24662818
+WITH RECURSIVE cte(x) AS (
+    SELECT
+        random()
+    UNION
+    ALL
+    SELECT
+        random()
+    FROM
+        cte
+    LIMIT
+        10000 -- should be sufficient for general purposes
+)
+INSERT INTO
+    nums(i)
+select
+    ROW_NUMBER() OVER (
+        ORDER BY
+            x
+    ) - 1 -- we want ours to start at 0 ... can't exactly remember why but there was a valid use-case 
+    -- recently.
+FROM
+    cte;
+
+
 -- template as a means to overcome the fact that you can't do DML on system catalogs
 -- but instead have to manipulate the model via DDL. The templates may be a way around 
 -- this by converting Rule4 relational data to DDL
@@ -28,4 +55,15 @@ CREATE TABLE url_template (
     url_template varchar NOT NULL,
     PRIMARY KEY (family, name)
 );
+
+
+-- https://www.sqlite.org/sqlar.html
+CREATE TABLE sqlar(
+  name TEXT PRIMARY KEY,  -- name of the file
+  mode INT,               -- access permissions
+  mtime INT,              -- last modification time
+  sz INT,                 -- original file size
+  data BLOB               -- compressed content
+);
+
 

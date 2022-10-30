@@ -5,6 +5,9 @@ VALUES('FTS', 'create_fts_index',
 -- see https://www.sqlite.org/fts5.html for general background on FTS
 -- we want to have a very high performance index that is suitable for use within interactive
 -- environments like Excel.
+
+DROP TABLE IF EXISTS {{fts}};
+
 CREATE VIRTUAL TABLE {{fts}} USING fts5(
 {% for c in indexed_columns%} [{{c}}], {% endfor%}
     content = {{object_name}}
@@ -16,6 +19,8 @@ VALUES('FTS', 'create_fts_triggers',
 '
 -- this is some boilerplate adapted from https://kimsereylam.com/sqlite/2020/03/06/full-text-search-with-sqlite.html
 -- for auto-maintaining the full-text indexes in the face of data modification (DML) on the tables.
+DROP TRIGGER IF EXISTS {{object_name}}_after_insert;
+
 CREATE TRIGGER {{object_name}}_after_insert
 AFTER
 INSERT
@@ -31,6 +36,9 @@ VALUES
         {% for c in indexed_columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
+
+DROP TRIGGER IF EXISTS {{object_name}}_after_delete;
+
 CREATE TRIGGER {{object_name}}_after_delete
 AFTER
     DELETE ON {{object_name}} BEGIN
@@ -47,6 +55,9 @@ VALUES
         {% for c in indexed_columns%} old.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
+
+DROP TRIGGER IF EXISTS {{object_name}}_after_update;
+
 CREATE TRIGGER {{object_name}}_after_update
 AFTER
 UPDATE
@@ -119,3 +130,30 @@ select eval(template_render(template, json_object('virtual_table_name', 'create_
 select eval(template_render(template, json_object('virtual_table_name', 'create_fts_triggers_t', 'template_name', 'create_fts_triggers')))
  from codegen_template where name = 'meta_create_fts_t';
 
+
+
+
+INSERT OR REPLACE INTO codegen_template
+VALUES(
+        'SOCRATA',
+        'create_table',
+        'CREATE TABLE IF NOT EXISTS {{database}}.[{{id}}] ({% for c in columns_field_name%} [{{c}}]{% if loop.is_last%}){%else %},{%endif%} {% endfor%}'
+    );
+
+    
+INSERT INTO codegen_template
+VALUES(
+        'SOCRATA',
+        'create_vsv_table',
+        replace(
+            '\nCREATE VIRTUAL TABLE\nIF NOT EXISTS\n [{{database}}].[{{vsv_table_name}}] \n USING vsv(filename=''{{vsv_file_name}}'',fsep="\t",header=yes,nulls=on,affinity=numeric)',
+            '\n',
+            char(10)
+        )
+    );
+
+
+DROP TABLE IF EXISTS rule4_fts;
+
+CREATE TABLE rule4_fts([object_name] sysname NOT NULL, [fts] sysname NOT NULL, indexed_columns JSON NOT NULL,
+PRIMARY KEY([object_name], [fts]));
