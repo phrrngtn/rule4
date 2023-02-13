@@ -16,8 +16,10 @@ where 1 = 0;
 delete from temp_http_request;
 
 -- give ample time for each HTTP request
-select http_timeout_set(25000);
-select http_rate_limit(100);
+-- the LIMIT 0 is just there to supress the output.
+select http_timeout_set(25000) LIMIT 0;
+select http_rate_limit(100) LIMIT 0;
+
 
 
 -- select 'hi', time_t_ms();
@@ -197,7 +199,7 @@ WHERE NOT
 
 
 
-select 'Done with resource_tabular';
+select format('Done with resource_tabular');
 -- now do the columns; likewise, another need for an UPSERT.
 WITH T AS (
     select r.resource_id,
@@ -242,7 +244,9 @@ WHERE NOT (    COALESCE(field_name, '') = COALESCE(excluded.field_name,'')
           AND COALESCE([description],'')=COALESCE(excluded.[description],'')
 );
   
-select 'done with columns';
+select format('done with columns');
 
 
 DELETE FROM temp_http_request;
+
+select define_free();
