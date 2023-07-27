@@ -17,8 +17,8 @@ delete from temp_http_request;
 
 -- give ample time for each HTTP request
 -- the LIMIT 0 is just there to supress the output.
-select http_timeout_set(25000) LIMIT 0;
-select http_rate_limit(100) LIMIT 0;
+select http_timeout_set(250000) LIMIT 0;
+select http_rate_limit(1000) LIMIT 0;
 
 
 
@@ -35,17 +35,19 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
              and s1.name = s.name)
          WHERE s.name = 'resources'
     ), U AS (
-    SELECT doi.domain,
+    SELECT d.domain,
            T.url_template_family,
            T.url_template_name,
            template_render(T.socrata_template,
-                           JSON_object('domain', doi.domain, 'resource_count', d.resource_count)) as url,
+                           JSON_object('domain', d.domain, 'resource_count', d.resource_count)) as url,
            template_render(T.local_path_template,
-                           json_object('workspace_root', '/data/socrata', 'domain', doi.domain)) as path
-    FROM socrata_domain_of_interest as doi
-    JOIN domain as d
+                           json_object('workspace_root', '/data/socrata', 'domain', d.domain)) as path
+    FROM domain as d
+    LEFT OUTER JOIN socrata_domain_of_interest as doi
     ON (doi.domain = d.domain),
        T
+    where d.resource_count < 20000 -- seems to be unreliable over this number
+    and d.resource_count > 0
     ),MOST_RECENT AS (
             SELECT U.domain,
                    max(bl.ts) as ts
@@ -62,6 +64,8 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
         -- the LOJ is needed.
         LEFT OUTER JOIN  lsdir(U.path) as cache_stat
         WHERE mr.ts > COALESCE(cache_stat.mtime,0)
+        ORDER BY  mr.ts ASC
+        LIMIT 100
     )  
 
 --select * FROM STALE;
@@ -113,7 +117,7 @@ FROM STALE AS S  -- not sure if putting this first helps avoid problem with poor
 -- select 'bye', time_t_ms();
 
 
-select 'DONE with retrieval of resources';
+select 'DONE with retrieval of resources' as "";
 WITH T AS (
     select json_extract(
             E.value,
@@ -129,7 +133,7 @@ WITH T AS (
         E.value->'$.creator' as [creator],
         E.value->'$.classification' as classification,
         E.value->'$.resource' as [resource]
-    FROM temp_http_request as b,
+    FROM temp_http_request as b, -- maybe should read the list of files from the fs?
         -- socrata_tempdb.http_request as b,
         JSON_EACH(
             readfile(b.local_path_response_body),
@@ -199,8 +203,11 @@ WHERE NOT
 
 
 
-select format('Done with resource_tabular');
+select format('Done with resource_tabular') as "";
 -- now do the columns; likewise, another need for an UPSERT.
+
+-- Not sure why we have to do *all* columns each time? Looks like it could
+-- be n^2 runtime (note the indexing by i)
 WITH T AS (
     select r.resource_id,
         i + 1 as field_number,
@@ -244,9 +251,9 @@ WHERE NOT (    COALESCE(field_name, '') = COALESCE(excluded.field_name,'')
           AND COALESCE([description],'')=COALESCE(excluded.[description],'')
 );
   
-select format('done with columns');
+select format('done with columns') as "";
 
 
 DELETE FROM temp_http_request;
 
-select define_free();
+select define_free() as "";
