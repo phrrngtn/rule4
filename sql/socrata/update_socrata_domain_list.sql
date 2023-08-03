@@ -20,7 +20,11 @@ select http_rate_limit(100);
  and above what is available from the http timings fields)
  */
 WITH U(url, url_template_family, url_template_name) AS (
-    SELECT url_template as url,
+    -- this looks a bit weird as their is no actual templating going
+    -- on as the Socrata URL to get all domains and their resource count, is not 
+    -- actually parameterized. However, to make the CTE look like the other queries
+    -- we query from the url_template
+    SELECT url_template as url, -- see note above.
     family as url_template_family,
     name as url_template_name
     FROM url_template
@@ -72,6 +76,15 @@ WITH T(domain, reported_resource_count) AS (
     FROM temp_http_request as b,
         JSON_EACH(b.response_body, '$.results') as E
 )
+-- the 'domain' table has a trigger-maintaine temporal backlog
+-- associated with it so we don't have to do anything explicit
+-- here in this query other than try to reduce/eliminate value-equivalent
+-- updated (i.e. where you update a row with the same value as it already had
+-- and thus spam the backlog). Note that there is an assumption that 
+-- resource_count will always go up. It may be the case that if a domain had
+-- n resources and then deleted 1 and added one then it would look to this sample
+-- as if the number of resources was unchanged and thus no chage would be made to the
+-- domain table so we would not bother refreshing the resource and resource_column lists
 insert into domain(domain, resource_count)
 select domain,
     reported_resource_count as resource_count

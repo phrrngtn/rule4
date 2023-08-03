@@ -54,6 +54,71 @@ CREATE TABLE resource_tabular(
     FOREIGN KEY(domain) REFERENCES domain (domain)
 );
 
+
+DROP TABLE IF EXISTS resource_all_views;
+
+CREATE TABLE resource_all_views(
+    domain VARCHAR(512),
+    resource_id VARCHAR(9) NOT NULL,
+    [name] VARCHAR,
+    asset_type varchar,
+    category varchar,
+    [description] VARCHAR,
+    display_type varchar,
+    provenance varchar,
+    publication_date datetime NULL,
+    view_last_modified datetime NULL,
+    [resource] JSON NOT NULL,
+    PRIMARY KEY (resource_id),
+    FOREIGN KEY(domain) REFERENCES domain (domain)
+);
+
+
+DROP TABLE IF EXISTS resource_view;
+CREATE TABLE resource_view(
+    domain VARCHAR(512),
+    resource_id VARCHAR(9) NOT NULL,
+    [name] VARCHAR,
+    [description] VARCHAR,
+    asset_type VARCHAR,
+    view_type varchar,
+    display_type varchar,
+    [resource] JSON NOT NULL,
+    PRIMARY KEY (resource_id),
+    FOREIGN KEY(domain) REFERENCES domain (domain)
+);
+
+DROP TABLE IF EXISTS resource_view_column;
+
+CREATE TABLE resource_view_column (
+    resource_id VARCHAR(9) NOT NULL,
+    id integer not null,
+    field_number INTEGER NOT NULL,
+    data_type VARCHAR NULL,
+    render_type varchar not null,
+    _count    int NULL,
+    _cardinality INT NULL,
+    non_null_count int NULL,
+    smallest_value varchar NULL,
+    largest_value varchar NULL,
+    null_count int NULL,
+    [name] VARCHAR NOT NULL,
+    field_name VARCHAR,    
+    [description] VARCHAR NULL,    
+    PRIMARY KEY (id, field_number)
+    /*,
+    FOREIGN KEY(resource_id) REFERENCES resource_view (resource_id) */
+);
+
+
+CREATE VIEW resource_tabular_category(resource_id, category_ordinal, category)
+AS
+select r.resource_id,
+    CAST(j.[key] as smallint) as category_ordinal,
+    CAST(j.[value] as text) as category
+FROM resource_tabular as r,
+    JSON_EACH(r.classification, '$.categories') as j;
+
 DROP TABLE IF EXISTS resource_column;
 
 CREATE TABLE resource_column (

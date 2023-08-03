@@ -49,10 +49,14 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
     where d.resource_count < 20000 -- seems to be unreliable over this number
     and d.resource_count > 0
     ),MOST_RECENT AS (
+            -- the _td_bl_domain table is the temporal (td) backlog (bl) trigger-maintained
+            -- table for the domain table. We find the max timestamp from there for each domain
+            -- we will use that as a check against our local file-sytem copy of the 
             SELECT U.domain,
                    max(bl.ts) as ts
             FROM U JOIN _td_bl_domain as bl
               ON (u.domain = bl.domain)
+              WHERE operation <> 'D'
               GROUP BY U.domain
     ), STALE AS (
         SELECT U.*, mr.ts,cache_stat.mtime
@@ -65,7 +69,7 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
         LEFT OUTER JOIN  lsdir(U.path) as cache_stat
         WHERE mr.ts > COALESCE(cache_stat.mtime,0)
         ORDER BY  mr.ts ASC
-        LIMIT 100
+        LIMIT 100 -- this may need to be run several times if starting cold
     )  
 
 --select * FROM STALE;
