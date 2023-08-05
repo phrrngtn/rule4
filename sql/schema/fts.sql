@@ -82,7 +82,7 @@ INSERT INTO
 VALUES
     (
         new.rowid,
-        {% for c in indexed_columns%} old.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
+        {% for c in indexed_columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     );
 END;
 ');

@@ -3,6 +3,9 @@
 -- TODO: deal with computed columns
 -- deal with ROWID columns
 -- ensure we are dealing with tables and not virtual tables or views
+-- note that only one trigger per operation per table is allowed so 
+-- we can't have, say, a FTS and a temporal backlog on the same table using these templates. We
+-- would need to create a composite trigger that does both the FTS maintenance and the backlog maintenance.
 
 
 INSERT OR REPLACE INTO codegen_template(family, [name], template)
