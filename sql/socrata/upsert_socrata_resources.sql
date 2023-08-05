@@ -16,9 +16,9 @@ where 1 = 0;
 delete from temp_http_request;
 
 -- give ample time for each HTTP request
--- the LIMIT 0 is just there to supress the output.
-select http_timeout_set(250000) LIMIT 0;
-select http_rate_limit(1000) LIMIT 0;
+-- we cannot use LIMIT 0 as it seems to supress the function call in the first place?
+select http_timeout_set(@http_timeout) as "" LIMIT 1;
+select http_rate_limit(@http_rate_limit) as "" LIMIT 1;
 
 
 
@@ -41,9 +41,9 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
            template_render(T.socrata_template,
                            JSON_object('domain', d.domain, 'resource_count', d.resource_count)) as url,
            template_render(T.local_path_template,
-                           json_object('workspace_root', '/data/socrata', 'domain', d.domain)) as path
+                           json_object('workspace_root', @socrata_data_root, 'domain', d.domain)) as path
     FROM domain as d
-    LEFT OUTER JOIN socrata_domain_of_interest as doi
+    JOIN socrata_domain_of_interest as doi
     ON (doi.domain = d.domain),
        T
     where d.resource_count < 20000 -- seems to be unreliable over this number
@@ -132,11 +132,11 @@ WITH T AS (
             '$.permalink',
             '$.link'
         ) as flat_row,
-        E.value->'$.metadata' as metadata,
-        E.value->'$.owner' as [owner],
-        E.value->'$.creator' as [creator],
+        E.value->'$.metadata'       as metadata,
+        E.value->'$.owner'          as [owner],
+        E.value->'$.creator'        as [creator],
         E.value->'$.classification' as classification,
-        E.value->'$.resource' as [resource]
+        E.value->'$.resource'       as [resource]
     FROM temp_http_request as b, -- maybe should read the list of files from the fs?
         -- socrata_tempdb.http_request as b,
         JSON_EACH(
@@ -259,5 +259,3 @@ select format('done with columns') as "";
 
 
 DELETE FROM temp_http_request;
-
-select define_free() as "";

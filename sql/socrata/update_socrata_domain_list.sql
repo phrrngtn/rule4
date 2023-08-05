@@ -10,6 +10,8 @@ FROM http_request
 where 1 = 0;
 
 
+PRAGMA trusted_schema = 1;
+
 -- give ample time for each HTTP request
 select http_timeout_set(25000);
 select http_rate_limit(100);

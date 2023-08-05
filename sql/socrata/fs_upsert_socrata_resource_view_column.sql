@@ -9,46 +9,17 @@ where 1 = 0;
 -- debugging purposes.
 delete from temp_http_request;
 
--- give ample time for each HTTP request
 
-select http_timeout_set(100000) as "" LIMIT 0;
-
-select http_rate_limit(100) as "" LIMIT 0;
-
-
-
-DROP TABLE IF EXISTS resource_view_column;
-
-CREATE TABLE resource_view_column (
-    resource_id         VARCHAR(9) NOT NULL,
-    id                  integer not null,
-    field_number        INTEGER NOT NULL,
-    data_type           VARCHAR NOT NULL,
-    render_type         varchar NOT null,
-    _count              int NULL,
-    _cardinality        INT NULL,
-    non_null_count      int NULL,
-    smallest_value      varchar NULL,
-    largest_value       varchar NULL,
-    null_count          int NULL,
-    [name]              VARCHAR NOT NULL,
-    field_name          VARCHAR,    
-    [description]       VARCHAR NULL,    
-    PRIMARY KEY (id, field_number)
-    /*,
-    FOREIGN KEY(resource_id) REFERENCES resource_view (resource_id) */
-);
-
-
--- TODO: put in FTS index and backlog
--- TODO: get paths from table and/or JSON function
---    use sqlean define function to give a calling mechanism that is easy to interface to from
+-- DONE: put in FTS index and backlog 
+-- DONE: get paths from table and/or JSON function
+-- TODO:  use sqlean define function to give a calling mechanism that is easy to interface to from
 --    a spreadsheet
 
+-- This is a brute force solution: read in all of the downloaded view JSON files and upsert
 WITH F AS (
     select name AS path
-    FROM fileio_ls('/data/socrata/data.cityofnewyork.us')
-    where name like '%SOCRATA_views.json'
+    FROM fileio_ls(@socrata_data_root,1) -- recursive
+    where name like '%SOCRATA_views.json' -- file name pattern
 ), B AS (
     select path, json(fileio_read(path)) AS contents
     FROM F
@@ -77,7 +48,7 @@ WITH F AS (
         JSON_EACH(B.contents, '$.columns') AS C
     WHERE json_valid(B.contents) = 1
 ), W AS (
-select  'data.cityofnewyork.us' AS domain,
+select 
     T.path,
     T.resource_id,
     T.id,
@@ -92,7 +63,8 @@ select  'data.cityofnewyork.us' AS domain,
     T.largest_value,
     T.name,
     T.field_name,
-    T.description
+    T.description,
+    T.resource
 FROM T
 )
 
@@ -110,7 +82,8 @@ FROM T
     largest_value,
     name,
     field_name,
-    [description]
+    [description],
+    [resource]
  )
  SELECT
     resource_id,
@@ -126,30 +99,34 @@ FROM T
     largest_value,
     [name],
     field_name,
-    [description]
-FROM W;
+    [description],
+    [resource]
+FROM W
+WHERE true ON CONFLICT(id, field_number) DO
+UPDATE
+set data_type=excluded.data_type,
+    render_type=excluded.render_type,
+    _count=excluded._count,
+    _cardinality=excluded._cardinality,
+    non_null_count=excluded.non_null_count,
+    null_count=excluded.null_count,
+    smallest_value=excluded.smallest_value,
+    largest_value=excluded.largest_value,
+    [name]=excluded.[name],
+    field_name=excluded.field_name,
+    description=excluded.description
+WHERE NOT (
+        COALESCE(data_type, '') = COALESCE(excluded.data_type, '')
+    AND COALESCE(render_type, '') = COALESCE(excluded.render_type, '')
+    AND COALESCE(_count, '') = COALESCE(excluded._count, '')
+    AND COALESCE(_cardinality, '') = COALESCE(excluded._cardinality, '')
+    AND COALESCE(non_null_count, '') = COALESCE(excluded.non_null_count, '')
+    AND COALESCE(null_count, '') = COALESCE(excluded.null_count, '')    
+    AND COALESCE(smallest_value, '') = COALESCE(excluded.smallest_value, '')
+    AND COALESCE(largest_value, '') = COALESCE(excluded.largest_value, '')
+    AND COALESCE(name, '') = COALESCE(excluded.name, '')
+    AND COALESCE(field_name, '') = COALESCE(excluded.field_name, '')
+    AND COALESCE(description, '') = COALESCE(excluded.description, '')
+);
 
--- TODO: put in usable ON CONFLICT clause to avoid trashing the backlog
 
--- WHERE true ON CONFLICT(resource_id) DO
--- UPDATE
--- SET [domain]=excluded.[domain],
---     [name] = excluded.name,
---     [description]=excluded.[description],
---     [asset_type]=excluded.[asset_type],
---     [category]=excluded.[category],
---     [provenance]=excluded.[provenance],
---     [publication_date]=excluded.[publication_date],
---     [view_last_modified]=excluded.[view_last_modified],
---     [resource]=excluded.[resource]
--- WHERE NOT 
---     (
---         COALESCE(domain, '') = COALESCE(excluded.domain,'')
---     AND COALESCE(name,'') = COALESCE(excluded.name,'')
---     AND COALESCE(description, '') = COALESCE(excluded.description,'')
---     AND COALESCE(asset_type,'') = COALESCE(excluded.asset_type,'')
---     AND COALESCE(category, '') = COALESCE(excluded.category, '')
---     AND COALESCE(provenance, '') = COALESCE(excluded.provenance,'')
---     AND COALESCE(publication_date,'') = COALESCE(excluded.publication_date, '')
---     AND COALESCE(view_last_modified,'') = COALESCE(excluded.view_last_modified, '')
---     );

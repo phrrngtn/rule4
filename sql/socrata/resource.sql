@@ -104,11 +104,13 @@ CREATE TABLE resource_view_column (
     null_count int NULL,
     [name] VARCHAR NOT NULL,
     field_name VARCHAR,    
-    [description] VARCHAR NULL,    
+    [description] VARCHAR NULL,
+    [resource] JSON NULL, 
     PRIMARY KEY (id, field_number)
     /*,
     FOREIGN KEY(resource_id) REFERENCES resource_view (resource_id) */
 );
+
 
 
 CREATE VIEW resource_tabular_category(resource_id, category_ordinal, category)
@@ -162,7 +164,9 @@ CREATE TABLE socrata_domain_of_interest(
 INSERT OR REPLACE INTO rule4_fts([object_name], [fts], [indexed_columns])
 VALUES ('resource', 'resource_fts', json_array('name', 'description')),
        ('resource_column', 'resource_column_fts', json_array('field_name','name', 'description'))
-       ;
+       /*,('resource_view_column', 'resource_view_column_fts', json_array('field_name','name', 'description')) */
+       
+        ;
 
 
 INSERT OR REPLACE INTO rule4_temporal_backlog([object_name], [backlog_name],[primary_key_columns],[columns])
@@ -172,9 +176,20 @@ INSERT OR REPLACE INTO rule4_temporal_backlog([object_name], [backlog_name],[pri
         json_array('resource_id'),
         json_array('domain', 'name', 'description', 'permalink')
     ),(
+        'resource_all_views',
+        '_td_bl_resource_all_views',
+        json_array('resource_id'),
+        json_array('domain', 'name', 'description', 'asset_type','display_type',
+        'provenance', 'publication_date', 'view_last_modified')
+    ),(
         'resource_column',
         '_td_bl_resource_column',
         json_array('resource_id', 'field_number'),
+        json_array('field_name', 'data_type', 'name', 'description')
+    ),(
+        'resource_view_column',
+        '_td_bl_resource_view_column',
+        json_array('id', 'field_number'),
         json_array('field_name', 'data_type', 'name', 'description')
     ),(
         'socrata_domain_of_interest',

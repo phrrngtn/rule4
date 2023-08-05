@@ -29,13 +29,12 @@ where 1 = 0;
 
 -- we may do this differently it we want requests to stay around for 
 -- debugging purposes.
-delete from temp_http_request;
+--delete from temp_http_request;
 
 -- give ample time for each HTTP request
 
-select http_timeout_set(100000) as "" LIMIT 0;
-
-select http_rate_limit(100) as "" LIMIT 0;
+select http_timeout_set(@http_timeout)   as "" LIMIT 1;
+select http_rate_limit(@http_rate_limit) as "" LIMIT 1;
 
 
 WITH T(url_template_family, url_template_name, socrata_template, local_path_template) AS (
@@ -55,13 +54,12 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
            template_render(T.socrata_template,
                            JSON_object('domain', d.domain)) as url,
            template_render(T.local_path_template,
-                           json_object('workspace_root', '/data/socrata', 'domain', d.domain)) as path
+                           json_object('workspace_root', @socrata_data_root, 'domain', d.domain)) as path
     FROM domain as d
-    LEFT OUTER JOIN socrata_domain_of_interest as doi
+    JOIN socrata_domain_of_interest as doi
     ON (doi.domain = d.domain),
        T
-    where d.resource_count < 20000 -- seems to be unreliable over this number
-    and d.resource_count > 0
+    where d.resource_count > 0
     ),MOST_RECENT AS (
             -- the _td_bl_domain table is the temporal (td) backlog (bl) trigger-maintained
             -- table for the domain table. We find the max timestamp from there for each domain
@@ -73,21 +71,21 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
               WHERE operation <> 'D'
               GROUP BY U.domain
     ), STALE AS (
-        SELECT U.*, mr.ts,cache_stat.mtime
+        SELECT U.*, 
+            COALESCE(mr.ts,0) as ts,
+            COALESCE(cache_stat.mtime, 0) as mtime
         FROM U
-        -- this JOIN means that there *must* be an existing backlog record
-        -- consider if we can use a LOJ
-        JOIN MOST_RECENT as mr 
+        LEFT OUTER JOIN 
+            MOST_RECENT as mr 
           ON (U.domain = mr.domain)
         -- the LOJ is needed.
         LEFT OUTER JOIN  lsdir(U.path) as cache_stat
-        WHERE mr.ts > COALESCE(cache_stat.mtime,0)
-        ORDER BY random(), mr.ts ASC
-        LIMIT 5    -- this may need to be run several times if starting cold
+        WHERE COALESCE(mr.ts, unixepoch('now')) > COALESCE(cache_stat.mtime,0)
+        ORDER BY  mr.ts ASC
     )  
 
---    Select * FROM STALE;
---select domain, ts, mtime FROM STALE;
+--Select * FROM STALE;
+-- select domain, ts, mtime FROM STALE;
 
 INSERT INTO temp_http_request(
         local_path_response_body,
@@ -137,7 +135,6 @@ WHERE H.response_status_code  between 200 and 299;
 
 WITH T AS (
     select 
-        E.value->>'$.domainName' as domain,
         E.value->>'$.id' as resource_id,
         E.value->>'$.name' as [name],
         E.value->>'$.assetType' as [asset_type],
@@ -155,7 +152,6 @@ WITH T AS (
         ) as E 
 )
 INSERT INTO resource_all_views(
-    domain,
 resource_id,
 name,
 asset_type,
@@ -167,7 +163,7 @@ publication_date,
 view_last_modified,
 resource
 )
-select  T.domain,
+select 
     T.resource_id,
     T.name,
     T.asset_type,
@@ -181,7 +177,7 @@ select  T.domain,
 FROM T
 WHERE true ON CONFLICT(resource_id) DO
 UPDATE
-SET [domain]=excluded.[domain],
+SET
     [name] = excluded.name,
     [description]=excluded.[description],
     [asset_type]=excluded.[asset_type],
@@ -192,12 +188,11 @@ SET [domain]=excluded.[domain],
     [resource]=excluded.[resource]
 WHERE NOT 
     (
-        COALESCE(domain, '') = COALESCE(excluded.domain,'')
-    AND COALESCE(name,'') = COALESCE(excluded.name,'')
-    AND COALESCE(description, '') = COALESCE(excluded.description,'')
-    AND COALESCE(asset_type,'') = COALESCE(excluded.asset_type,'')
-    AND COALESCE(category, '') = COALESCE(excluded.category, '')
-    AND COALESCE(provenance, '') = COALESCE(excluded.provenance,'')
-    AND COALESCE(publication_date,'') = COALESCE(excluded.publication_date, '')
-    AND COALESCE(view_last_modified,'') = COALESCE(excluded.view_last_modified, '')
+        COALESCE(name,'') = COALESCE(excluded.name,'.')
+    AND COALESCE(description, '') = COALESCE(excluded.description,'.')
+    AND COALESCE(asset_type,'') = COALESCE(excluded.asset_type,'.')
+    AND COALESCE(category, '') = COALESCE(excluded.category, '.')
+    AND COALESCE(provenance, '') = COALESCE(excluded.provenance,'.')
+    AND COALESCE(publication_date,'') = COALESCE(excluded.publication_date, '.')
+    AND COALESCE(view_last_modified,'') = COALESCE(excluded.view_last_modified, '.')
     );
