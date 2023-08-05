@@ -132,6 +132,10 @@ WITH T AS (
             '$.permalink',
             '$.link'
         ) as flat_row,
+        E.value ->> '$.resource.updatedAt' as updated_at,
+        E.value ->> '$.resource.createdAt' as created_at,
+        E.value ->> '$.resource.metadata_updated_at' as metadata_updated_at,
+        E.value ->> '$.resource.data_updated_at' as data_updated_at,
         E.value->'$.metadata'       as metadata,
         E.value->'$.owner'          as [owner],
         E.value->'$.creator'        as [creator],
@@ -150,6 +154,10 @@ _RESOURCE AS (
         T.flat_row->>2 as [name],
         T.flat_row->>3 as [description],
         T.flat_row->>4 as permalink,
+        T.updated_at            as updated_at,
+        T.created_at            as created_at,
+        T.metadata_updated_at   as metadata_updated_at,
+        T.data_updated_at       as data_updated_at,
         T.metadata as metadata,
         T.owner as [owner],
         T.creator as creator,
@@ -163,6 +171,10 @@ INSERT INTO [resource_tabular] (
         [name],
         [description],
         permalink,
+        updated_at,
+        created_at,
+        metadata_updated_at,
+        data_updated_at,
         metadata,
         [owner],
         creator,
@@ -173,7 +185,11 @@ SELECT [domain],
     [resource_id],
     [name],
     [description],
-    [permalink],
+    [permalink],    
+    unixepoch(updated_at) as updated_at,
+    unixepoch(created_at) as created_at,
+    unixepoch(metadata_updated_at) as metadata_updated_at,
+    unixepoch(data_updated_at) as data_updated_at,
     [metadata],
     [owner],
     [creator],
@@ -187,6 +203,10 @@ SET [domain]=excluded.[domain],
     [description]=excluded.[description],
     [permalink]=excluded.[permalink],
     [metadata]=excluded.[metadata],
+    [created_at]=excluded.[created_at],
+    [updated_at]=excluded.[updated_at],
+    [metadata_updated_at]=excluded.[metadata_updated_at],
+    [data_updated_at]=excluded.[data_updated_at],
     [owner]=excluded.[owner],
     [creator]=excluded.[creator],
     [classification]=excluded.[classification],
@@ -198,6 +218,10 @@ WHERE NOT
     AND COALESCE(description, '') = COALESCE(excluded.description,'')
     AND COALESCE(permalink,'') = COALESCE(excluded.permalink,'')
     AND COALESCE(metadata, '') = COALESCE(excluded.metadata, '')
+    AND COALESCE([updated_at], '') = COALESCE(excluded.[updated_at], '')
+    AND COALESCE([created_at], '') = COALESCE(excluded.[created_at], '')
+    AND COALESCE([metadata_updated_at], '') = COALESCE(excluded.[metadata_updated_at], '')
+    AND COALESCE([data_updated_at], '') = COALESCE(excluded.[data_updated_at], '')
     AND COALESCE(owner, '') = COALESCE(excluded.owner,'')
     AND COALESCE(creator,'') = COALESCE(excluded.creator, '')
     AND COALESCE(resource, '') = COALESCE(excluded.resource,'')
@@ -216,16 +240,16 @@ WITH T AS (
     select r.resource_id,
         i + 1 as field_number,
         -- the JSON is zero-based but we want the fields to be 1-based
-        r.resource->'$.columns_field_name'->>i AS field_name,
-        r.resource->'$.columns_datatype'->>i AS data_type,
-        r.resource->'$.columns_name'->>i AS [name],
+        r.resource->'$.columns_field_name' ->>i AS field_name,
+        r.resource->'$.columns_datatype'   ->>i AS data_type,
+        r.resource->'$.columns_name'       ->>i AS [name],
         r.resource->'$.columns_description'->>i AS [description]
     FROM resource_tabular as r -- this contains the resource blobs as shredded from the catalog blob for a domain
         JOIN nums ON (
             -- note the < .. nums is zero-based
             nums.i < json_array_length(r.resource, '$.columns_name')
         )
-    where json_array_length(r.resource, '$.columns_name') <> 0 -- want to pick out the resources that have column
+    where json_array_length(r.resource, '$.columns_name') <> 0 -- want to pick out the resources that have columns
         -- we might be able to use $.lens_view_type = 'tabular'
 )
 INSERT INTO resource_column(

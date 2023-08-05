@@ -1,5 +1,12 @@
 
-INSERT OR REPLACE INTO url_template
+-- these are used to generate URLs and file-paths for Socrata-related activities.
+-- family = 'SOCRATA' is for Socrata URLs
+-- family = 'SOCRATA_PATH' is for local files which contain the downloaded contents of the HTTP requests
+-- we want to avoid overwhelming Socrata with HTTP calls so use the local file-system as a 
+-- loosely structured cache. The {{workspace_root}} placeholder will usually be filled in by the
+-- @socrata_data_root SQLite parameter.
+
+INSERT OR REPLACE INTO url_template(family,name, url_template)
 VALUES (
         'SOCRATA',
         'views',

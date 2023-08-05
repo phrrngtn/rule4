@@ -45,6 +45,10 @@ CREATE TABLE resource_tabular(
     [name] VARCHAR,
     [description] VARCHAR,
     permalink VARCHAR,
+    updated_at datetime,
+    created_at datetime,
+    metadata_updated_at datetime,
+    data_updated_at datetime,    
     metadata JSON,
     classification JSON,
     [owner] JSON,
@@ -164,7 +168,7 @@ CREATE TABLE socrata_domain_of_interest(
 INSERT OR REPLACE INTO rule4_fts([object_name], [fts], [indexed_columns])
 VALUES ('resource', 'resource_fts', json_array('name', 'description')),
        ('resource_column', 'resource_column_fts', json_array('field_name','name', 'description'))
-       /*,('resource_view_column', 'resource_view_column_fts', json_array('field_name','name', 'description')) */
+       /*,('resource_view_column', 'resource_view_column_fts', json_array('field_name','name', 'description'))       */
        
         ;
 
