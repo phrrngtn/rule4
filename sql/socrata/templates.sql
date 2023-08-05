@@ -12,7 +12,18 @@ VALUES (
         'SOCRATA',
         'tsv',
         'https://{{domain}}/resource/{{resource_id}}.tsv'
-    ),(
+    ),
+    (
+        'SOCRATA',
+        'resource',
+        'https://{{domain}}/resource/{{resource_id}}'
+    ),
+    (
+        'SOCRATA',
+        'OData',
+        'https://{{domain}}/api/odata/v4/{{resource_id}}'
+    ),
+    (
         'SOCRATA_PATH',
         'tsv',
         '{{workspace_root}}/{{domain}}/{{resource_id}}.tsv'
