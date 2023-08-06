@@ -24,17 +24,25 @@ WITH T AS (SELECT
 ), T1 AS (
     -- I think the {{resource_id}}.tsv downloads just the first 1000 rows
     -- so we would need to pull in row_count information from resource_view_column to get
-    -- counts.
+    -- counts. 
+    -- see docs on system fields https://dev.socrata.com/docs/system-fields.html to get
+    -- some pointers on how to do incremental scrape of a resource.
 SELECT template_render(T.socrata_template,
                            JSON_object('domain', I.domain, 'resource_id', I.resource_id)) as url,
            template_render(T.local_path_template,
                            json_object('workspace_root', @socrata_data_root, 'domain', I.domain, 'resource_id', I.resource_id)) as path
 FROM T, INFRASTRUCTURE AS I
 )
+-- be super careful with the details of doing the HTTP get and writing out the response
+-- we should really be logging the response headers, status-codes, timing information etc.
+-- xref https://github.com/asg017/sqlite-http/issues/29
+
 SELECT fileio_write(T1.path, H.response_body)
 FROM T1 LEFT OUTER JOIN http_get(T1.url) AS H;
 
 
+-- create the VSV virtual tables in a throwaway database because this is all
+-- metadata book-keeping and quite cheap relative to accessing the data.
 ATTACH ':memory:' as tsv;
 
 -- map in all the .tsv files underneath the @socrata_data_root directory
@@ -46,7 +54,7 @@ ATTACH ':memory:' as tsv;
     select JSON_OBJECT('database', 'tsv', 
                        'vsv_table_name', LEFT(RIGHT(name, 13), 9), 
                        'vsv_file_name', name) as jo 
-    FROM fileio_ls('/data/socrata', 1) 
+    FROM fileio_ls('/data/socrata', 1) -- TODO : parameterize
     where name like '%.tsv' 
     and instr(name, '_') = 0 
      and size > 200
@@ -56,4 +64,17 @@ ATTACH ':memory:' as tsv;
             JOIN codegen_template as T 
             ON (T.family='SOCRATA' and T.name = 'create_vsv_table')
     ) 
+-- The DDL is idempotent in the sense that you can call it multiple times and it
+-- will not crash if there is already a VSV of the same name but it will not 'refresh'
+-- anything
+
  SELECT eval(DDL.ddl) FROM DDL;
+
+ --- once we have the TSV files downloaded and the VSV wrappers around them, the data in the
+ -- flat files can be queried like it was already in a database. This is handy for us for
+ -- doing stuff like data-profiling and consistency checking of datatypes prior to importing
+ -- the data into a higher ceremony database such as SQL Server, PostgreSQL or duckdb.
+ -- One of the things that is nice about the duck is that we could use this metadata-database
+ -- for the codegen of duckdb statements to COPY the .tsv to Parquet, for example. The type-system
+ -- is much more forgiving on SQLite so we could test out if the data would load cleanly into
+ -- a particular schema.
