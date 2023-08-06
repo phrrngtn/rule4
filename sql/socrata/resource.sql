@@ -70,8 +70,10 @@ CREATE TABLE resource_all_views(
     [description] VARCHAR,
     display_type varchar,
     provenance varchar,
+    created_at datetime NULL,
     publication_date datetime NULL,
     view_last_modified datetime NULL,
+    rows_updated_at datetime NULL,
     [resource] JSON NOT NULL,
     PRIMARY KEY (resource_id),
     FOREIGN KEY(domain) REFERENCES domain (domain)

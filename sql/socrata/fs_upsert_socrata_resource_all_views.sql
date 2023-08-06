@@ -31,8 +31,10 @@ WITH T AS (
         E.value->>'$.description' as [description],
         E.value->>'$.displayType' as [display_type],
         E.value->>'$.provenance' as [provenance],
+        E.value->>'$.createdAt' as created_at,
         E.value->>'$.publicationDate' as publication_date,
         E.value->>'$.viewLastModified' as view_last_modified,
+        E.value->>'$.rowsUpdatedAt'    as rows_updated_at,
         E.value  as [resource]
         FROM fileio_ls(@socrata_data_root,1) as ls, -- xref: https://www.sqlite.org/cli.html#sql_parameters
         JSON_EACH(
@@ -50,8 +52,10 @@ category,
 description,
 display_type,
 provenance,
+created_at,
 publication_date,
 view_last_modified,
+rows_updated_at,
 resource
 )
 select 
@@ -62,8 +66,10 @@ select
     T.description,
     T.display_type,
     T.provenance,
-    T.publication_date,
-    T.view_last_modified,
+    COALESCE(unixepoch(datetime(T.created_at)), T.created_at) as created_at,
+    COALESCE(unixepoch(datetime(T.publication_date)), T.publication_date) as publication_date,
+    COALESCE(unixepoch(datetime(T.view_last_modified)), T.view_last_modified) as view_last_modified,
+    T.rows_updated_at,
     T.resource
 FROM T
 WHERE true ON CONFLICT(resource_id) DO
@@ -74,8 +80,10 @@ SET
     [asset_type]=excluded.[asset_type],
     [category]=excluded.[category],
     [provenance]=excluded.[provenance],
+    [created_at]=excluded.[created_at],    
     [publication_date]=excluded.[publication_date],
     [view_last_modified]=excluded.[view_last_modified],
+    [rows_updated_at]=excluded.[rows_updated_at],
     [resource]=excluded.[resource]
 WHERE NOT 
     (
@@ -85,5 +93,7 @@ WHERE NOT
     AND COALESCE(category, '') = COALESCE(excluded.category, '.')
     AND COALESCE(provenance, '') = COALESCE(excluded.provenance,'.')
     AND COALESCE(publication_date,'') = COALESCE(excluded.publication_date, '.')
+    AND COALESCE(created_at,'') = COALESCE(excluded.created_at, '.')
     AND COALESCE(view_last_modified,'') = COALESCE(excluded.view_last_modified, '.')
+    AND COALESCE(rows_updated_at,'') = COALESCE(excluded.rows_updated_at, '.')
     );
