@@ -4,18 +4,23 @@
 
 -- look into using API key for downloads https://socrataapikeys.docs.apiary.io/#reference
 
+-- see about passing in a JSON parameter blob to JOIN on the various tables
+-- think of a google sheet as a frontend passing in a blob of JSON generated
+-- a key-value map between named ranges and their contents.
 WITH T AS (SELECT 
-            s.family as url_template_family,
-            s.name   as url_template_name,
-            s.url_template as socrata_template,
+            s.family        as url_template_family,
+            s.name          as url_template_name,
+            s.url_template  as socrata_template,
             s1.url_template as local_path_template
          FROM url_template  as s
-         JOIN url_template as s1
+         JOIN url_template  as s1
          ON (s.family='SOCRATA' and s1.family = 'SOCRATA_PATH'
              and s1.name = s.name)
          WHERE s.name = 'tsv'
 ), INFRASTRUCTURE AS (
-    select rtc.*, rt.domain, rt.name 
+    select rtc.*, 
+        rt.domain, 
+        rt.name 
     FROM resource_tabular_category as rtc 
     LEFT OUTER JOIN resource_tabular as rt 
     ON rtc.resource_id = rt.resource_id
@@ -27,11 +32,11 @@ WITH T AS (SELECT
     -- counts. 
     -- see docs on system fields https://dev.socrata.com/docs/system-fields.html to get
     -- some pointers on how to do incremental scrape of a resource.
-SELECT template_render(T.socrata_template,
-                           JSON_object('domain', I.domain, 'resource_id', I.resource_id)) as url,
-           template_render(T.local_path_template,
-                           json_object('workspace_root', @socrata_data_root, 'domain', I.domain, 'resource_id', I.resource_id)) as path
-FROM T, INFRASTRUCTURE AS I
+    SELECT template_render(T.socrata_template,
+                            JSON_object('domain', I.domain, 'resource_id', I.resource_id)) as url,
+            template_render(T.local_path_template,
+                            json_object('workspace_root', @socrata_data_root, 'domain', I.domain, 'resource_id', I.resource_id)) as path
+    FROM T, INFRASTRUCTURE AS I
 )
 -- be super careful with the details of doing the HTTP get and writing out the response
 -- we should really be logging the response headers, status-codes, timing information etc.
@@ -54,7 +59,7 @@ ATTACH ':memory:' as tsv;
     select JSON_OBJECT('database', 'tsv', 
                        'vsv_table_name', LEFT(RIGHT(name, 13), 9), 
                        'vsv_file_name', name) as jo 
-    FROM fileio_ls('/data/socrata', 1) -- TODO : parameterize
+    FROM fileio_ls(@socrata_data_root, 1) -- TODO : parameterize
     where name like '%.tsv' 
     and instr(name, '_') = 0 
      and size > 200

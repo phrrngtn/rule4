@@ -21,21 +21,24 @@ sqlean> .output
 
 
 
+-- STUDY: see if it makes sense to decouple the downloading of the resource blobs from their
+-- incorporation into the schema.
 
+-- This processes *ALL* json files under @socrata_data_root whose name match the %all_views%.json pattern
 WITH T AS (
     select 
-        E.value->>'$.id' as resource_id,
-        E.value->>'$.name' as [name],
-        E.value->>'$.assetType' as [asset_type],
-        E.value->>'$.category' as category,
-        E.value->>'$.description' as [description],
-        E.value->>'$.displayType' as [display_type],
-        E.value->>'$.provenance' as [provenance],
-        E.value->>'$.createdAt' as created_at,
-        E.value->>'$.publicationDate' as publication_date,
+        E.value->>'$.id'               as resource_id,
+        E.value->>'$.name'             as [name],
+        E.value->>'$.assetType'        as [asset_type],
+        E.value->>'$.category'         as category,
+        E.value->>'$.description'      as [description],
+        E.value->>'$.displayType'      as [display_type],
+        E.value->>'$.provenance'       as [provenance],
+        E.value->>'$.createdAt'        as created_at,
+        E.value->>'$.publicationDate'  as publication_date,
         E.value->>'$.viewLastModified' as view_last_modified,
         E.value->>'$.rowsUpdatedAt'    as rows_updated_at,
-        E.value  as [resource]
+        E.value                        as [resource]
         FROM fileio_ls(@socrata_data_root,1) as ls, -- xref: https://www.sqlite.org/cli.html#sql_parameters
         JSON_EACH(
             fileio_read(ls.name)
@@ -45,18 +48,18 @@ WITH T AS (
         and json_valid(fileio_read(ls.name))=1
 )
 INSERT INTO resource_all_views(
-resource_id,
-name,
-asset_type,
-category,
-description,
-display_type,
-provenance,
-created_at,
-publication_date,
-view_last_modified,
-rows_updated_at,
-resource
+    resource_id,
+    [name],
+    asset_type,
+    category,
+    [description],
+    display_type,
+    provenance,
+    created_at,
+    publication_date,
+    view_last_modified,
+    rows_updated_at,
+    [resource]
 )
 select 
     T.resource_id,
@@ -75,25 +78,25 @@ FROM T
 WHERE true ON CONFLICT(resource_id) DO
 UPDATE
 SET
-    [name] = excluded.name,
-    [description]=excluded.[description],
-    [asset_type]=excluded.[asset_type],
-    [category]=excluded.[category],
-    [provenance]=excluded.[provenance],
-    [created_at]=excluded.[created_at],    
-    [publication_date]=excluded.[publication_date],
-    [view_last_modified]=excluded.[view_last_modified],
-    [rows_updated_at]=excluded.[rows_updated_at],
-    [resource]=excluded.[resource]
+    [name]              = excluded.name,
+    [description]       = excluded.[description],
+    [asset_type]        = excluded.[asset_type],
+    [category]          = excluded.[category],
+    [provenance]        = excluded.[provenance],
+    [created_at]        = excluded.[created_at],    
+    [publication_date]  = excluded.[publication_date],
+    [view_last_modified]= excluded.[view_last_modified],
+    [rows_updated_at]   = excluded.[rows_updated_at],
+    [resource]          = excluded.[resource]
 WHERE NOT 
     (
-        COALESCE(name,'') = COALESCE(excluded.name,'.')
-    AND COALESCE(description, '') = COALESCE(excluded.description,'.')
-    AND COALESCE(asset_type,'') = COALESCE(excluded.asset_type,'.')
-    AND COALESCE(category, '') = COALESCE(excluded.category, '.')
-    AND COALESCE(provenance, '') = COALESCE(excluded.provenance,'.')
-    AND COALESCE(publication_date,'') = COALESCE(excluded.publication_date, '.')
-    AND COALESCE(created_at,'') = COALESCE(excluded.created_at, '.')
+        COALESCE([name],'')         = COALESCE(excluded.[name],'.')
+    AND COALESCE([description], '') = COALESCE(excluded.[description],'.')
+    AND COALESCE(asset_type,'')     = COALESCE(excluded.asset_type,'.')
+    AND COALESCE(category, '')      = COALESCE(excluded.category, '.')
+    AND COALESCE(provenance, '')    = COALESCE(excluded.provenance,'.')
+    AND COALESCE(publication_date,'')   = COALESCE(excluded.publication_date, '.')
+    AND COALESCE(created_at,'')         = COALESCE(excluded.created_at, '.')
     AND COALESCE(view_last_modified,'') = COALESCE(excluded.view_last_modified, '.')
-    AND COALESCE(rows_updated_at,'') = COALESCE(excluded.rows_updated_at, '.')
+    AND COALESCE(rows_updated_at,'')    = COALESCE(excluded.rows_updated_at, '.')
     );
