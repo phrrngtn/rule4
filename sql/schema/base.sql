@@ -7,6 +7,12 @@
 
 -- we can use define to create useful functions that we can then refer to either
 -- directly or in the codegen templates.
+
+
+-- see comment in  https://stackoverflow.com/a/76344213/40387
+-- PRAGMA trusted_schema=1;
+
+
 SELECT define("time_t_ms", 'format("%d.%d", strftime("%s","now"),substr(strftime("%f","now"),4))');
 SELECT define("time_t", 'format("%d", strftime("%s","now"))');
 
