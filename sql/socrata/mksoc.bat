@@ -7,8 +7,4 @@ rem into foo.db3
 cd ..\schema
 sqlean -init c:\tools\extensions.sqlite %1 ".read main.sql"                      
 cd ..\socrata                                                                                       
-sqlean -init c:\tools\extensions.sqlite %1 ".read main.sql"                      
-sqlean -init c:\tools\extensions.sqlite %1  ".read update_socrata_domain_list.sql"
-sqlean -init c:\tools\extensions.sqlite %1 ".read t_local_fs.sql"                                                   
-sqlean -init c:\tools\extensions.sqlite %1 ".read test_view.sql"                 
-                                     
+sqlean -init c:\tools\extensions.sqlite %1 ".read make_socrata.sql"                      
