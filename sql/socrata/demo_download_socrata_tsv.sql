@@ -59,7 +59,7 @@ ATTACH ':memory:' as tsv;
     select JSON_OBJECT('database', 'tsv', 
                        'vsv_table_name', LEFT(RIGHT(name, 13), 9), 
                        'vsv_file_name', name) as jo 
-    FROM fileio_ls(@socrata_data_root, 1) -- TODO : parameterize
+    FROM fileio_ls(@socrata_data_root, 1)
     where name like '%.tsv' 
     and instr(name, '_') = 0 
      and size > 200

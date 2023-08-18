@@ -4,6 +4,42 @@ PRAGMA foreign_keys = ON;
 -- This is the DDL for the table that contains the column definitions
 -- for tabular resources.
 
+-- xref https://socratadiscovery.docs.apiary.io/#   
+
+-- [domain]
+-- https://api.us.socrata.com/api/catalog/v1/domains
+--
+-- A list of all the domains managed by Socrata and the resource-count. This is scrapable by 
+-- a single API call and gives us a quick way of finding out when a new domain has been added
+-- or a new resource has been added to a domain (since deletions appear to be rare)
+-- There is a temporal backlog on the table and a "suppress value equivalent update" poll and
+-- populate query (update_socrata_domain_list.sql) so we can call the endpoint once or twice a day
+-- and then look at the backlog to see what has changed. 
+
+
+
+-- [socrata_domain_of_interest]
+-- Because the overall metadata volumes are large, we can narrow the focus of a number of operations
+-- to the 'socrata_domain_of_interest'. If one wants to study a domain in more depth, the first
+-- step is to add the domain to this table.
+
+-- [resource]
+-- https://api.us.socrata.com/api/catalog/v1?domains={{domain}}&offset=0&limit={{resource_count}}
+--
+-- Note how we can get all the resource definitions for a single domain by including the resource_count
+-- (which we get from the [domain] table)
+
+-- [resource_all_views]
+-- https://{{domain}}/api/views
+--
+-- resource_view
+-- resource_tabular
+-- resource_column
+-- resource_view_column
+-- resource_tabular_category
+
+
+
 DROP TABLE IF EXISTS socrata_blob;
 
 CREATE TABLE socrata_blob([path] primary key, mtime, [blob], blob_checksum);

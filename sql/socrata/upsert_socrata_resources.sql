@@ -25,6 +25,9 @@ select http_rate_limit(@http_rate_limit) as "" LIMIT 1;
 -- select 'hi', time_t_ms();
 
 WITH T(url_template_family, url_template_name, socrata_template, local_path_template) AS (
+    -- This is a common pattern: we want a URL and a PATH template paired up (since we are going
+    -- to retrieve a URL and write the contents locally to a file). This code seems a bit cumbersome
+    -- and I think it could be factored out a bit better, perhaps as a virtual table/tvf
      SELECT s.family as url_template_family,
             s.name   as url_template_name,
             s.url_template as socrata_template,
@@ -35,23 +38,32 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
              and s1.name = s.name)
          WHERE s.name = 'resources'
     ), U AS (
+    -- likewise, this is where we fill out the templates with some data from a local table.
+    -- we could factor this out into a virtual table and perhaps take in 'socrata_domain_of_interest' as 
+    -- a JSON parameter (in the spirit of separating out the stuff you make up from the stuff you can't 
+    -- make up)
     SELECT d.domain,
            T.url_template_family,
            T.url_template_name,
            template_render(T.socrata_template,
-                           JSON_object('domain', d.domain, 'resource_count', d.resource_count)) as url,
+                           JSON_object('domain', d.domain, 'resource_count', d.resource_count)
+                           ) as url,
            template_render(T.local_path_template,
-                           json_object('workspace_root', @socrata_data_root, 'domain', d.domain)) as path
+                           json_object('workspace_root', @socrata_data_root, 'domain', d.domain)
+                            ) as path
     FROM domain as d
     JOIN socrata_domain_of_interest as doi
     ON (doi.domain = d.domain),
        T
     where d.resource_count < 20000 -- seems to be unreliable over this number
-    and d.resource_count > 0
+                                    -- although that may have been due to problems with timeouts and 
+                                    -- http0 misconfiguration on my part.
+    and d.resource_count > 0 -- definitely do not want to attempt to process bogus domains.
     ),MOST_RECENT AS (
             -- the _td_bl_domain table is the temporal (td) backlog (bl) trigger-maintained
             -- table for the domain table. We find the max timestamp from there for each domain
-            -- we will use that as a check against our local file-sytem copy of the 
+            -- we will use that as a check against our local file-system copy of the resource blob
+            -- 
             SELECT U.domain,
                    max(bl.ts) as ts
             FROM U JOIN _td_bl_domain as bl
@@ -66,7 +78,7 @@ WITH T(url_template_family, url_template_name, socrata_template, local_path_temp
         JOIN MOST_RECENT as mr 
           ON (U.domain = mr.domain)
         -- the LOJ is needed.
-        LEFT OUTER JOIN  lsdir(U.path) as cache_stat
+        LEFT OUTER JOIN  fileio_ls(U.path) as cache_stat
         WHERE mr.ts > COALESCE(cache_stat.mtime,0)
         ORDER BY  mr.ts ASC
         LIMIT 100 -- this may need to be run several times if starting cold
@@ -96,7 +108,7 @@ INSERT INTO temp_http_request(
     )
 SELECT 
     S.path,
-    writefile(S.path, H.response_body),
+    fileio_write(S.path, H.response_body),
     -- XXXX: this seems important to avoid multiple, parallel HTTP connections
     H.request_url,
     H.request_method,
@@ -116,6 +128,10 @@ SELECT
     S.url_template_name
 FROM STALE AS S  -- not sure if putting this first helps avoid problem with poor performance
     LEFT OUTER JOIN http_get(S.url) AS H;
+
+    -- TODO: check HTTP status codes
+    -- TODO: maybe roll some of the HTTP requests from the temp table to a more durable one (for auditing/performance
+    -- purposes)
     
 
 -- select 'bye', time_t_ms();
@@ -144,7 +160,7 @@ WITH T AS (
     FROM temp_http_request as b, -- maybe should read the list of files from the fs?
         -- socrata_tempdb.http_request as b,
         JSON_EACH(
-            readfile(b.local_path_response_body),
+            fileio_read(b.local_path_response_body),
             '$.results'
         ) as E --WHERE b.request_url like 'https://api.us.socrata.com/api/catalog/v1%'
 ),

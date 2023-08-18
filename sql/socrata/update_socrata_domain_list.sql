@@ -19,8 +19,8 @@ PRAGMA trusted_schema = 1;
 -- is mixed up with other code that it can lead to difficult to evolve systems.
 
 -- give ample time for each HTTP request
-select http_timeout_set(25000);
-select http_rate_limit(100);
+select http_timeout_set(@http_timeout) as "";
+select http_rate_limit(@http_rate_limit) as "";
 /*
  
  This should not need to be run all that often. It may be useful to have an estimate of 
