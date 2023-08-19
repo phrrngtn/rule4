@@ -2,30 +2,42 @@ import csv
 import io
 
 from textual.app import App, ComposeResult
-from textual.widgets import DataTable
+
+from textual.widgets import DataTable, Welcome
 
 import sqlalchemy
-import pysqlite3
+from sqlalchemy import sql
+import sqlean as sqlite3
+import duckdb
 
-from pysqlite3 import dbapi2 as sqlite
 
-engine_memory = sqlalchemy.create_engine('sqlite://',module=pysqlite3)
-engine_memory.execute("ATTACH DATABASE '/home/phrrngtn/socrata.db3' as socrata");
+engine_memory = sqlalchemy.create_engine('sqlite://')
 
-q = "SELECT * FROM socrata.sqlite_master"
+with engine_memory.connect() as c:
+    c.execute(sql.text("ATTACH DATABASE '/home/phrrngtn/socrata.db3' as socrata;"))
+
+
+
+def foo():
+    con = duckdb.connect(database=':memory:')
+    con.execute('SELECT * FROM   duckdb_views()')
 
 class TableApp(App):
     def compose(self) -> ComposeResult:
-        yield DataTable()
+        yield DataTable('t1')
+        yield DataTable('t2')
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        r = engine_memory.execute(q)
-        table.add_columns(*r.keys())
-        table.add_rows(r)
+        q = sql.text("SELECT type, name, sql FROM socrata.sqlite_master")
+
+        with engine_memory.connect() as c:
+            r = c.execute(q)
+            table.add_columns(*r.mappings().keys())
+            table.add_rows(r.fetchall())
         table.focus()
 
 def main():
-    print("hello from rule4.cli.main")
     app = TableApp()
     app.run()
+
