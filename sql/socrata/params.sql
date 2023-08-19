@@ -8,7 +8,7 @@ PRAGMA trusted_schema=1;
 .parameter init
 -- this is the root of the location in the file-system to which Socrata 
 -- artifacts will be downloaded.
-.parameter set @socrata_data_root "/data/socrata"
+.parameter set @socrata_data_root '/home/phrrngtn/data/socrata'
 
 -- see documentation on https://github.com/asg017/sqlite-http
 .parameter set @http_rate_limit 100
@@ -20,3 +20,5 @@ PRAGMA trusted_schema=1;
 
 select http_timeout_set(@http_timeout) as "" LIMIT 1;
 select http_rate_limit(@http_rate_limit) as "" LIMIT 1;
+
+select printf("done with params");

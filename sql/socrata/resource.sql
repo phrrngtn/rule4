@@ -155,7 +155,7 @@ CREATE TABLE resource_view_column (
 
 
 
-CREATE VIEW resource_tabular_category(resource_id, category_ordinal, category)
+CREATE VIEW IF NOT EXISTS resource_tabular_category(resource_id, category_ordinal, category)
 AS
 select r.resource_id,
     CAST(j.[key] as smallint) as category_ordinal,
@@ -255,6 +255,7 @@ FROM create_fts_triggers_t(r4.[object_name], r4.[fts], r4.[indexed_columns]),
     rule4_fts as r4;
 
 
+
 SELECT eval(ddl) 
 FROM create_temporal_backlog_t(r4.[object_name],
                                r4.[backlog_name],
@@ -295,3 +296,4 @@ CREATE INDEX ix_ts_socrata_resource_http_request ON socrata_resource_http_reques
 CREATE INDEX ix_socrata_domain_ts_socrata_resource_http_request ON socrata_resource_http_request(socrata_domain,ts);
 
 
+select printf("done with resource.sql");

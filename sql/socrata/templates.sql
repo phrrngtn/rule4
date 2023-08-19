@@ -65,3 +65,4 @@ VALUES (
     );
 
 
+select printf("done with templates.sql");
