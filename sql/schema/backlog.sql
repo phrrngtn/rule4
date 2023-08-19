@@ -36,7 +36,7 @@ BEGIN INSERT INTO {{backlog}}(
     {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
-        time_t_ms(),
+        format("%d.%d", strftime("%s","now"),substr(strftime("%f","now"),4)),
         ''I'',
         {% for c in primary_key_columns%} new.[{{c}}],{% endfor%}
         {% for c in columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
@@ -53,7 +53,7 @@ BEGIN INSERT INTO {{backlog}}(
     {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
-        time_t_ms(),
+        format("%d.%d", strftime("%s","now"),substr(strftime("%f","now"),4)),
         ''U'',
         {% for c in primary_key_columns%} new.[{{c}}],{% endfor%}
         {% for c in columns%} new.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
@@ -70,7 +70,7 @@ BEGIN INSERT INTO {{backlog}}(
     {% for c in primary_key_columns%}[{{c}}],{% endfor%}
     {% for c in columns%} [{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
     ) VALUES (
-        time_t_ms(),
+        format("%d.%d", strftime("%s","now"),substr(strftime("%f","now"),4)),
         ''D'',
         {% for c in primary_key_columns%} old.[{{c}}],{% endfor%}
         {% for c in columns%} old.[{{c}}]{% if loop.is_last%}{%else %}, {%endif%}{% endfor%}
