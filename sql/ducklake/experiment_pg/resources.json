@@ -1,0 +1,517 @@
+[
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "erm2-nwe9",
+    "name": "311 Service Requests from 2020 to Present"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "6bgk-3dad",
+    "name": "DOB ECB Violations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "rbx6-tga4",
+    "name": "DOB NOW: Build \u2013 Approved Permits"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "uvpi-gqnh",
+    "name": "2015 Street Tree Census - Tree Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "5uac-w243",
+    "name": "NYPD Complaint Data Current (Year To Date)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "yjxr-fw8i",
+    "name": "Property Valuation and Assessment Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "pvqr-7yc4",
+    "name": "Parking Violations Issued - Fiscal Year 2026"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "qgea-i56i",
+    "name": "NYPD Complaint Data Historic"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "hg8x-zxpr",
+    "name": "Affordable Housing Production by Building"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "wvxf-dwi5",
+    "name": "Housing Maintenance Code Violations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "tqtj-sjs8",
+    "name": "Street Construction Permits (2022-Present)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "dg92-zbpx",
+    "name": "City Record Online"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "vfnx-vebw",
+    "name": "2018 Central Park Squirrel Census - Squirrel Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "p937-wjvj",
+    "name": "Rodent Inspection"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "dsg6-ifza",
+    "name": "DOHMH Childcare Center Inspections (Historical)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "bs8b-p36w",
+    "name": "DOB Certificate Of Occupancy"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "h9gi-nx95",
+    "name": "Motor Vehicle Collisions - Crashes"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "enfh-gkve",
+    "name": "Parks Properties"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "btm5-ppia",
+    "name": "Traffic Volume Counts (Historical)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "43nn-pn8j",
+    "name": "DOHMH New York City Restaurant Inspection Results"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "76xm-jjuj",
+    "name": "EMS Incident Dispatch Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "w7w3-xahh",
+    "name": "Issued Licenses"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "kpav-sd4t",
+    "name": "Jobs NYC Postings"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "uiay-nctu",
+    "name": "Open Streets Locations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "8m42-w767",
+    "name": "Fire Incident Dispatch Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "8586-3zfm",
+    "name": "Active Projects Under Construction"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "867j-5pgi",
+    "name": "Trade Waste Hauler Licensees"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "jr24-e7cr",
+    "name": "Electric Consumption And Cost (2010 - Sep 2025)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "833y-fsy8",
+    "name": "ARCHIVED_NYPD Shooting Incident Data (Historic)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "zkky-n5j3",
+    "name": "Current Reservoir Levels"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "eccv-9dzr",
+    "name": "CURRENT BASES"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "8h9b-rp9u",
+    "name": "NYPD Arrests Data (Historic)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "uip8-fykc",
+    "name": "NYPD Arrest Data (Year to Date)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "8wbx-tsch",
+    "name": "For Hire Vehicles (FHV) - Active"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "mdcw-n682",
+    "name": "Greenbook"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "xywu-7bv9",
+    "name": "New York City Population by Borough, 1950 - 2040"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "wz6d-d3jb",
+    "name": "Bedbug Reporting"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "a9md-ynri",
+    "name": "Civil Service List Certification"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "ez4e-fazm",
+    "name": "Bus Breakdown and Delays"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "yhuu-4pt3",
+    "name": "Street Hail Livery (SHL) Permits"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "vx8i-nprf",
+    "name": "Civil Service List (Active)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "6z8x-wfk4",
+    "name": "Evictions"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "nc67-uf89",
+    "name": "Open Parking and Camera Violations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "3h2n-5cm9",
+    "name": "DOB Violations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "n2zq-pubd",
+    "name": "NYPD Calls for Service (Year to Date)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "t29m-gskq",
+    "name": "2018 Yellow Taxi Trip Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "biws-g3hs",
+    "name": "2017 Yellow Taxi Trip Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "k397-673e",
+    "name": "Citywide Payroll Data (Fiscal Year)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "rhe8-mgbb",
+    "name": "Medallion  Vehicles - Authorized"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "pe54-wf39",
+    "name": "TLC Approved LabCorp Patient Services Drug Test Locations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "tesw-yqqr",
+    "name": "Multiple Dwelling Registrations"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "eabe-havv",
+    "name": "DOB Complaints Received"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "y7az-s7wc",
+    "name": "J-51 Exemption and Abatement (Historical)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "jgtb-hmpg",
+    "name": "Medallion Vehicles - Inactive"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "bqiq-cu78",
+    "name": "NYPD Hate Crimes"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "7ym2-wayt",
+    "name": "Automated Traffic Volume Counts"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "tg4x-b46p",
+    "name": "Film Permits"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "tvpp-9vvx",
+    "name": "NYC Permitted Event Information"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "7479-ugqb",
+    "name": "Daily Inmates In Custody"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "9rz4-mjek",
+    "name": "Tax Lien Sale Lists"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "k46n-sa2m",
+    "name": "DHS Daily Report"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "5ucz-vwe8",
+    "name": "Shootings (2006-Present)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "dpec-ucu7",
+    "name": "TLC New Driver Application Status"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "hc8x-tcnd",
+    "name": "FDNY Firehouse Listing"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "ebb7-mvp5",
+    "name": "DSNY Monthly Tonnage Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "c3uy-2p5r",
+    "name": "Air Quality"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "nzjr-3966",
+    "name": "NYC Civil Service Titles"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "e98g-f8hy",
+    "name": "Property Data (Buildings Information System)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "i6b5-j7bu",
+    "name": "Street Closures due to construction activities by Block"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "2v9c-2k7f",
+    "name": "FHV Base Aggregate Report"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "f7dc-2q9f",
+    "name": "SARS-CoV-2 concentrations measured in NYC Wastewater"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "rsgh-akpg",
+    "name": "DOHMH Dog Bite Data"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "nu7n-tubp",
+    "name": "NYC Dog Licensing Dataset"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "xi7c-iiu2",
+    "name": "New York City Population By Community Districts"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "jb7j-dtam",
+    "name": "New York City Leading Causes of Death"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "xjfq-wh2d",
+    "name": "For Hire Vehicles (FHV) - Active Drivers"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "pasr-j7fb",
+    "name": "Emergency Response Incidents"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "ye3c-m4ga",
+    "name": "Civil List"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "5tub-eh45",
+    "name": "Street Hail Livery (SHL) Drivers - Active"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "jb3k-j3gp",
+    "name": "Medallion Drivers - Active"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "25th-nujf",
+    "name": "Popular Baby Names"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "swpk-hqdp",
+    "name": "New York City Population By Neighborhood Tabulation Areas"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "f9bf-2cp4",
+    "name": "2012 SAT Results"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "pri4-ifjk",
+    "name": "Modified Zip Code Tabulation Areas (MODZCTA)"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "7zb8-7bpk",
+    "name": "Property Tax Rates by Tax Class"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "ncbg-6agr",
+    "name": "DOF Parking Violation Codes"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "ia2d-e54m",
+    "name": "Water Consumption in the City of New York"
+  },
+  {
+    "domain": "data.cityofnewyork.us",
+    "ds_id": "gysc-yn4h",
+    "name": "NYC City Hall Library Catalog"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "xzkq-xp2w",
+    "name": "Current Employee Names, Salaries, and Position Titles"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "z8bn-74gv",
+    "name": "Police Stations"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "28km-gtjn",
+    "name": "Fire Stations"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "kn9c-c2s2",
+    "name": "Census Data - Selected socioeconomic indicators"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "x8fc-8rcq",
+    "name": "Libraries - Locations, Contact Information, Hours"
+  },
+  {
+    "domain": "data.cityofchicago.org",
+    "ds_id": "4i42-qv3h",
+    "name": "Speed Camera Locations"
+  },
+  {
+    "domain": "data.texas.gov",
+    "ds_id": "8w53-c4f6",
+    "name": "WARN Notices"
+  },
+  {
+    "domain": "data.texas.gov",
+    "ds_id": "pp37-5cwt",
+    "name": "TCA All Approved Grants FY25"
+  },
+  {
+    "domain": "data.colorado.gov",
+    "ds_id": "a9rr-k8mu",
+    "name": "Colorado Licensed Child Care Facilities Report"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "ierb-h3t5",
+    "name": "Utah Hospital Characteristics"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "xcyn-2ayc",
+    "name": "State Recidivism Rates All States"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "8q4k-thaj",
+    "name": "ABC Licensee List"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "88ws-42u9",
+    "name": "Utah Occupational Employment And Wages Data"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "farg-zirr",
+    "name": "Utah County Census Projections 2010-2060"
+  },
+  {
+    "domain": "opendata.utah.gov",
+    "ds_id": "bzur-buif",
+    "name": "Population Density By Land Area And County"
+  }
+]

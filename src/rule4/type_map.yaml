@@ -1,0 +1,207 @@
+# rule4 type mapping registry
+#
+# Two sections:
+#   sources:       source_dialect -> { native_type: SQLAlchemy_type }
+#   type_families: family_name -> [list of equivalent type names]
+#
+# The sources section maps source-native type names to SQLAlchemy type class names.
+# SQLAlchemy handles the second leg (SA type -> target dialect DDL) automatically.
+#
+# The type_families section groups type names (both SA and physical) into equivalence
+# classes for round-trip validation. A round-trip is correct if the source and readback
+# types belong to the same family.
+
+sources:
+  socrata:
+    Text: String
+    Number: Numeric
+    "Calendar date": DateTime
+    Date: Date
+    Checkbox: Boolean
+    URL: String
+    Url: String
+    Point: String
+    MultiPolygon: String
+    MultiPoint: String
+    MultiLine: String
+    Polygon: String
+    Line: String
+    Photo: String
+    Document: String
+
+  duckdb:
+    VARCHAR: String
+    BIGINT: BigInteger
+    INTEGER: Integer
+    DOUBLE: Float
+    FLOAT: Float
+    BOOLEAN: Boolean
+    TIMESTAMP: DateTime
+    DATE: Date
+    DECIMAL: Numeric
+    SMALLINT: Integer
+    TINYINT: Integer
+    REAL: Float
+    BLOB: String
+    HUGEINT: BigInteger
+    UINTEGER: Integer
+    UBIGINT: BigInteger
+    USMALLINT: Integer
+    UTINYINT: Integer
+    TIMESTAMP WITH TIME ZONE: DateTime
+    TIME: String
+    INTERVAL: String
+    UUID: String
+
+  postgresql:
+    character varying: String
+    varchar: String
+    text: String
+    integer: Integer
+    bigint: BigInteger
+    smallint: Integer
+    numeric: Numeric
+    decimal: Numeric
+    real: Float
+    double precision: Float
+    boolean: Boolean
+    timestamp without time zone: DateTime
+    timestamp with time zone: DateTime
+    date: Date
+    time without time zone: String
+    time with time zone: String
+    uuid: String
+    json: String
+    jsonb: String
+    bytea: String
+    inet: String
+    cidr: String
+    macaddr: String
+    interval: String
+    money: Numeric
+
+  sqlite:
+    TEXT: String
+    INTEGER: Integer
+    REAL: Float
+    BLOB: String
+    NUMERIC: Numeric
+    BOOLEAN: Boolean
+    DATE: Date
+    DATETIME: DateTime
+    TIMESTAMP: DateTime
+    VARCHAR: String
+    FLOAT: Float
+    DECIMAL: Numeric
+    BIGINT: BigInteger
+
+  sqlserver:
+    nvarchar: String
+    varchar: String
+    nchar: String
+    char: String
+    int: Integer
+    bigint: BigInteger
+    smallint: Integer
+    tinyint: Integer
+    decimal: Numeric
+    numeric: Numeric
+    float: Float
+    real: Float
+    bit: Boolean
+    datetime: DateTime
+    datetime2: DateTime
+    smalldatetime: DateTime
+    date: Date
+    time: String
+    datetimeoffset: DateTime
+    money: Numeric
+    smallmoney: Numeric
+    uniqueidentifier: String
+    xml: String
+    varbinary: String
+    binary: String
+    image: String
+    text: String
+    ntext: String
+    sql_variant: String
+    hierarchyid: String
+    geography: String
+    geometry: String
+
+type_families:
+  string:
+    - String
+    - VARCHAR
+    - TEXT
+    - NullType
+    - character varying
+    - text
+    - nvarchar
+    - varchar
+    - nchar
+    - char
+    - ntext
+
+  integer:
+    - Integer
+    - INTEGER
+    - BigInteger
+    - BIGINT
+    - SMALLINT
+    - TINYINT
+    - INT
+    - integer
+    - bigint
+    - smallint
+    - tinyint
+    - int
+    - HUGEINT
+    - UINTEGER
+    - UBIGINT
+    - USMALLINT
+    - UTINYINT
+
+  numeric:
+    - Numeric
+    - NUMERIC
+    - DECIMAL
+    - numeric
+    - decimal
+    - money
+    - smallmoney
+    - MONEY
+
+  float:
+    - Float
+    - FLOAT
+    - DOUBLE
+    - REAL
+    - DOUBLE_PRECISION
+    - double precision
+    - real
+    - float
+
+  boolean:
+    - Boolean
+    - BOOLEAN
+    - BOOL
+    - bit
+    - boolean
+
+  datetime:
+    - DateTime
+    - DATETIME
+    - TIMESTAMP
+    - "TIMESTAMP WITH TIME ZONE"
+    - "timestamp without time zone"
+    - "timestamp with time zone"
+    - datetime
+    - datetime2
+    - smalldatetime
+    - datetimeoffset
+
+  date:
+    - Date
+    - DATE
+    - date
