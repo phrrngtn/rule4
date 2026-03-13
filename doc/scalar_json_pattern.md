@@ -144,3 +144,86 @@ The bottleneck is network latency to remote sources, not JSON parse time. For
 the data itself — the actual rows of the datasets being cataloged — conventional
 bulk-load mechanisms (Parquet files, COPY, BCP) remain appropriate. The scalar
 JSON pattern governs the *control plane*, not the *data plane*.
+
+## Result Representations: List-of-Dicts vs Header+Body
+
+blobodbc's `odbc_query` currently returns a JSON array of objects (list-of-dicts):
+
+    [{"session_id": 75, "login_name": "rule4"}, ...]
+
+This is convenient but redundant — column names repeat on every row. For a
+10,000-row, 20-column result set, that is ~200KB of repeated key strings.
+
+The alternative is a **relational representation** — the format that relational
+theory greybeards would recognize as a relation's heading and body:
+
+    {
+      "meta":   {"query": "...", "executed_at": "...", "elapsed_ms": 12,
+                 "row_count": 2, "column_count": 6},
+      "header": [{"name": "session_id", "ordinal": 0, "type_name": "int",
+                  "sql_type": 4, "size": 10, "scale": 0}, ...],
+      "body":   [[75, "rule4", ...], [76, "app_user", ...]]
+    }
+
+The header carries everything needed to reconstruct a typed table in any
+consumer: column names, ordinal positions, driver-reported type names, ODBC SQL
+type codes, size, and decimal scale. The body is a list of lists — positional
+values, no repeated keys.
+
+### Design Decision: Always Produce the Rich Form Internally
+
+blobodbc should always produce the `{meta, header, body}` representation
+internally. The list-of-dicts format is a trivial expansion of this (zip header
+names with each body row). The choice of output format can be:
+
+- A different function name (`odbc_query` → list-of-dicts, `odbc_relation` →
+  header+body), or
+- A JMESPath expression that transforms the internal representation before
+  returning it.
+
+This avoids maintaining two independent code paths. The rich form is the single
+source of truth; the list-of-dicts form is a presentation convenience.
+
+### Consumer-Side CTE Generation
+
+Given a deterministic header (same columns, same types for a given query), a
+consumer can generate a fixed CTE that reads body arrays positionally with
+typed casts:
+
+    SELECT
+        CAST(j->>0 AS INT)          AS session_id,
+        CAST(j->>1 AS VARCHAR(128)) AS login_name,
+        CAST(j->>2 AS VARCHAR(128)) AS service_name
+    FROM (SELECT unnest(cast(body AS JSON[])) AS j FROM ...)
+
+The CTE is generated once from the header and reused. The body flows as data,
+never as SQL text. No VALUES-clause materialization, no batch compilation cost
+scaling with row count.
+
+The header's `type_name` and `sql_type` fields are join keys into
+`registry.type_mapping` in PostgreSQL, which provides canonical type mappings
+across dialects. This enables automatic generation of correctly-typed CTE
+projections for any target dialect.
+
+### JMESPath Reshaping at the Query Execution Level
+
+blobodbc includes jsoncons as an internal dependency (header-only, not exposed
+via any public function). This allows an optional JMESPath expression to reshape
+the JSON result before it crosses the FFI boundary back to the calling database.
+
+This is motivated by catalog-scraping use cases where different source dialects
+produce different result-set shapes (different column names, different column
+orders) but we want to conform them to a common schema. The JMESPath expression
+knows about source and destination columns, and the reshaping happens inside
+blobodbc — no serialize/deserialize round-trip through the database layer.
+
+jsoncons is **not** exposed as UDF functions from blobodbc. JMESPath, JSON
+diff/patch, and flatten/unflatten are exposed as database functions from
+blobtemplates, which is the designated JSON toolkit extension. blobodbc is an
+ODBC client that happens to use jsoncons internally; blobtemplates is the
+extension that makes jsoncons capabilities available to SQL.
+
+See Lemire et al. on JSON parsing performance — the serialization cost is
+dominated by ODBC network latency for metadata-scale workloads, but keeping the
+reshape close to the data source is a matter of expressiveness and composability,
+not just performance.
