@@ -27,8 +27,15 @@ Both mechanisms share the same pattern: replay a source's causal history as
 transaction-time snapshots, preserving whatever temporal fidelity the source
 provides (full CDC history, poll-based change tracking, or event timestamps).
 
+A third mechanism — **provenance capture** — injects OpenTelemetry trace
+context into database sessions at connection checkout time, making distributed
+trace IDs available to triggers that record *who* or *what* made each change.
+Session metadata (PID, login time, client address) enables temporal semi-joins
+against process accounting data to identify the actor behind the trail.
+
 See [`sql/ducklake/README.md`](sql/ducklake/README.md) for the full design
-document.
+document and [`doc/`](doc/) for design notes on JSON tunneling, provenance
+capture, and the log-as-database insight.
 
 ## Python Modules (`src/rule4/`)
 

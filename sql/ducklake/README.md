@@ -247,15 +247,30 @@ With heterogeneous sources unified in a single DuckLake catalog:
 7. **SQL Server local instance**: Azure SQL Edge on Docker Desktop (ARM64 native).
    OPENJSON + JSON_VALUE for the JSON-to-CTE pattern. Full TTST tested.
 
+8. **Provenance capture design** (`doc/provenance_capture.md`): Connection pool
+   preamble that injects OpenTelemetry trace context into database sessions via
+   dialect-specific mechanisms (`sp_set_session_context` on SQL Server, custom
+   GUC variables on PostgreSQL, `SET VARIABLE` on DuckDB, application-defined
+   functions on SQLite). Provenance triggers read session context and write
+   trace IDs into a log table, linking DuckLake snapshots to distributed
+   traces. Temporal semi-join on process accounting for actor identification.
+
+9. **Design notes** (`doc/`): "Scalar Functions, JSON Tunneling, and Rule 4"
+   — the JSON-as-scalar-envelope pattern and its relationship to Schueler's
+   log-as-database insight. "Logs All the Way Down" — the structural analogy
+   between git's DAG, CDC shared LSNs, and DuckLake snapshot timelines.
+
 ### Next Steps
 
-1. **CDC adapter**: DuckDB SQL that reads CDC change tables via ODBC and produces
+1. **Provenance event listener**: Implement the SQLAlchemy connection pool
+   preamble designed in `doc/provenance_capture.md`. Test on all four dialects.
+2. **Provenance trigger codegen**: Generate session-context-reading triggers
+   for SQL Server and PostgreSQL from catalog metadata.
+3. **CDC adapter**: DuckDB SQL that reads CDC change tables via ODBC and produces
    DuckLake snapshots.
-2. **Provenance schema**: Define the `commit_extra_info` JSON structure and
-   validation.
-3. **Classification bridge**: Sync `RULE4.extended_property` values into DuckLake
+4. **Classification bridge**: Sync `RULE4.extended_property` values into DuckLake
    column metadata.
-4. **FTS indexes** on the PG Socrata catalog (resource names, descriptions,
+5. **FTS indexes** on the PG Socrata catalog (resource names, descriptions,
    column descriptions).
-5. **Vector embeddings**: Hierarchical path embeddings on the catalog for
+6. **Vector embeddings**: Hierarchical path embeddings on the catalog for
    semantic similarity search.
