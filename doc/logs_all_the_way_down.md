@@ -251,3 +251,21 @@ OTEL correlation, linked to the data changes by transaction ID.
 
 The log entry's identity should be like a git SHA or an NDN data name:
 determined by what it contains, not by how it arrived.
+
+
+## Why It Has to Be Logs
+
+It has to be logs all the way down because time's arrow has only one direction,
+and the log is the only data structure that respects this as a first-class
+constraint. Tables, indexes, materialized views, caches — all are timeless
+projections that discard ordering. You can reconstruct a table from its log
+but you cannot reconstruct the log from a table, for the same reason you
+cannot unstir cream from coffee. The log is isomorphic to the causal history
+of the system, and causal history is what time's arrow produces. Every UPDATE
+that overwrites a value is an act of forgetting — entropy reduction achieved
+by discarding the record of what was there before. Schueler's "optimized
+access path" is an optimization that trades temporal fidelity for spatial
+efficiency. The log grows because time moves forward, and it can only grow,
+because time does not move back. "After the Fact" is the work of recovering the arrow of time from systems
+that deliberately erased it. We are, of course, trying to unstir the cream
+from the coffee.
