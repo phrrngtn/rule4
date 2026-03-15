@@ -1,8 +1,17 @@
 # The BLOB Extension Family
 
-Four C/C++ libraries that follow a common pattern: a core library with a
+Five C/C++ libraries that follow a common pattern: a core library with a
 narrow C API, compiled into thin wrappers for SQLite, DuckDB, and Python.
 No shared library, no IPC — each consumer statically links the core.
+
+> **On naming:** The "blob" prefix is a misnomer — these extensions deal
+> almost exclusively with text (JSON, YAML, SQL, JMESPath expressions,
+> HTTP responses), making them CLOBs (Character Large Objects) by the
+> strict database definition. But "blob" is punchier and the `blob*`
+> prefix has stuck.
+
+**blobapi** is a companion Python project that uses these extensions to
+build an OpenAPI catalog with metadata-driven API adapters.
 
 All four use CMake with FetchContent for dependencies, C++17, and optional
 build flags (`BUILD_SQLITE_EXTENSION`, `BUILD_DUCKDB_EXTENSION`,
@@ -99,11 +108,16 @@ auxdata caching in SQLite.
 | `json_patch(source, patch)` | Apply JSON Patch (nlohmann) |
 | `json_flatten(json)` | Nested JSON → flat object with JSON Pointer keys |
 | `json_unflatten(json)` | Reverse of flatten |
+| `yaml_to_json(yaml)` | YAML → JSON conversion (rapidyaml, C speed) |
+| `zip_arrays(obj)` | `{a:[1,2], b:[3,4]}` → `[{a:1,b:3}, {a:2,b:4}]` (JMESPath custom function) |
+| `unzip_arrays(arr)` | Inverse of zip_arrays (JMESPath custom function) |
+| `to_entries(obj)` | `{k:v}` → `[{key:k, value:v}]` (JMESPath custom function) |
+| `from_entries(arr)` | Inverse of to_entries (JMESPath custom function) |
 
 ### Dependencies
 
-Inja v3.4.0, nlohmann/json v3.11.3, jsoncons v1.1.0 — all header-only,
-fetched at build time.
+Inja v3.4.0, nlohmann/json v3.11.3, jsoncons v1.1.0, rapidyaml v0.11.0 —
+all fetched at build time. Header-only except ryml (static lib).
 
 ### Typical use
 
@@ -240,13 +254,52 @@ intermediate form.
 - Bridge databases that DuckDB doesn't have a native scanner for
 
 
+## blobhttp
+
+**HTTP client as composable SQL scalar functions.**
+
+Wraps [libcurl](https://curl.se/libcurl/) (via [cpr](https://github.com/libcpr/cpr))
+behind scalar functions that return structured results (STRUCT in DuckDB,
+JSON string in SQLite). Parallel execution via libcurl's multi interface.
+
+### Functions
+
+| DuckDB | SQLite | Description |
+|---|---|---|
+| `http_get(url, headers, params)` | `bhttp_get(url, headers, params)` | GET with query params |
+| `http_post(url, headers, params, body)` | `bhttp_post(url, body, headers, params)` | POST |
+| `http_request(method, url, ...)` | `bhttp_request(method, url, ...)` | Generic, all verbs |
+
+Headers and params are JSON objects — composable via `json_object()`,
+`json_merge_patch()`, and vault-derived values.
+
+### Key features
+
+- **Scoped configuration**: URL-prefix matching for per-service auth, rate limits, timeouts
+- **Vault/OpenBao integration**: `vault_path` in config → automatic secret fetch and auth injection
+- **GCRA rate limiting**: per-host and global, with 429 backoff and diagnostics
+- **Parallel execution**: configurable `max_concurrent` per scalar function chunk
+- **Auth**: SPNEGO/Kerberos, Bearer with expiry, mutual TLS, query param keys
+
+### Dependencies
+
+cpr (libcurl C++ wrapper), nlohmann/json — fetched at build time.
+
+### Typical use
+
+- Call web APIs from SQL with automatic auth and rate limiting
+- Compose API calls in CTE chains (vault → geocode → weather → analysis)
+- JMESPath-driven adapters reshape responses to canonical schemas
+- Batch API calls driven by table data (blobhttp parallelizes automatically)
+
+
 ## How they compose
 
 ```
-  Web APIs (Socrata, etc.)           Relational databases
+  Web APIs (weather, geocoding, etc.) Relational databases
        │                                    │
-       │  http_enterprise                   │  blobodbc (JSON scalars)
-       │  (rate-limited, proxy-aware)       │  postgres_scanner / sqlite_scanner
+       │  blobhttp                          │  blobodbc (JSON scalars)
+       │  (rate-limited, vault-backed auth) │  postgres_scanner / sqlite_scanner
        ▼                                    ▼  (bulk data)
   ┌──────────────────────────────────────────────┐
   │                   DuckDB                      │
@@ -305,9 +358,9 @@ not the path for bulk data movement.
 
 | Use case | Tool | Why |
 |---|---|---|
-| Catalog metadata, stats, extended properties | `blobodbc` / `http_enterprise` | Small results, high structure, composable as JSON |
+| Catalog metadata, stats, extended properties | `blobodbc` / `blobhttp` | Small results, high structure, composable as JSON |
 | Bulk table scans, data migration | `postgres_scanner`, `sqlite_scanner`, nanodbc TVF (eventually) | Streaming, columnar, no serialization overhead |
-| Web API pagination | `http_enterprise` via curl + proxy | Rate limiting, backpressure (see below) |
+| Web API pagination | `blobhttp` via curl + proxy | Rate limiting, backpressure (see below) |
 
 ### The JSON tax
 
@@ -325,7 +378,7 @@ The `duckdb-http-enterprise` extension supports fetching data from web
 APIs through a local proxy (e.g. mitmproxy, squid) that handles rate
 limiting. The pattern:
 
-1. Configure `http_enterprise` with a proxy URL
+1. Configure `blobhttp` with a proxy URL
 2. The proxy enforces per-domain rate limits (e.g. 5 req/s for Socrata)
 3. DuckDB's query engine naturally applies backpressure — when the
    consuming operator (INSERT, COPY) slows down, the HTTP fetch slows
@@ -384,7 +437,7 @@ DuckLake's API, which allows us to:
   reconstructs the source's causal history.
 
 - **Register externally-produced Parquet files**: Data fetched via
-  `http_enterprise` or `blobodbc` is written to Parquet with explicit
+  `blobhttp` or `blobodbc` is written to Parquet with explicit
   `field_id` mappings matching the DuckLake catalog's `column_id`.
   The file path, row count, and footer size are registered in
   `ducklake_data_file`.
@@ -419,7 +472,7 @@ With this architecture, a single DuckDB session can join across:
 - **DuckLake temporal tables** (Parquet on MinIO, catalog on PostgreSQL)
 - **Live relational databases** (via `postgres_scanner`, `sqlite_scanner`,
   or `blobodbc`)
-- **Web APIs** (via `http_enterprise`)
+- **Web APIs** (via `blobhttp`)
 - **Document content** (via `blobboxes` — PDF, Excel, Word, plain text)
 - **Python dataframes** (via DuckDB's native dataframe registration)
 - **Local files** (CSV, Parquet, JSON via DuckDB built-ins)
