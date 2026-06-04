@@ -1,6 +1,10 @@
 # Text-to-Diagram Pipeline: Database-First Architecture
 
-> Captured from a Claude app conversation. Not yet implemented in CLI.
+> Captured from a Claude app conversation. **Update (2026-06): D2 rendering is
+> now implemented natively** by the `blobd2` extension (`d2_svg()`), which
+> renders D2 source to SVG in-process via a cgo wrap of the D2 Go library — no
+> Kroki/HTTP/browser for D2. Kroki remains the path for the other engines. See
+> the "Connection Points" section below.
 
 ## Background
 
@@ -21,7 +25,16 @@ Long-time Graphviz/DOT user (since early 90s) exploring modern text-to-diagram t
 
 ## The Architecture
 
-**Kroki** (self-hosted via Docker) as the rendering backend — a single HTTP endpoint that accepts diagram source text and returns SVG, supporting D2, Graphviz, Mermaid, Vega-Lite, PlantUML and many others. The generality is the point: one pipeline, multiple rendering engines selected per diagram type.
+Two rendering backends, chosen per engine:
+
+- **`blobd2` (native, in-process)** for **D2** — `d2_svg(source, options_json)` as
+  a scalar SQL function in DuckDB/SQLite (and a Python binding). A cgo `c-archive`
+  statically embeds the D2 Go library + dagre layout; output is SVG only. This is
+  the default for D2: no Docker, no HTTP round-trip, no headless browser.
+- **Kroki** (self-hosted via Docker) for everything `blobd2` does not cover —
+  Mermaid (JavaScript), PlantUML (Java), Graphviz, Vega-Lite, etc. A single HTTP
+  endpoint that accepts diagram source text and returns SVG. The generality is
+  the point: one pipeline, multiple rendering engines selected per diagram type.
 
 ### Four-Layer Model
 
@@ -29,7 +42,7 @@ Long-time Graphviz/DOT user (since early 90s) exploring modern text-to-diagram t
 |-------|-------------|
 | **Metadata** | Tables for nodes, edges, diagram types, templates |
 | **Assembly** | SQL views/macros that produce diagram source text or Vega-Lite JSON specs |
-| **Render** | Python UDFs (`kroki_render()` etc.) registered into DuckDB, calling self-hosted Kroki |
+| **Render** | `blobd2.d2_svg()` for D2 (native, in-process); `http_post()`/Python UDFs to self-hosted Kroki for other engines |
 | **Cache** | Rendered SVGs stored keyed by hash of source |
 
 ### Example Metadata Schema
@@ -80,7 +93,7 @@ INSERT INTO render_queue SELECT id FROM diagram_spec WHERE svg IS NULL;
 
 ## Key Tool Notes
 
-- **D2**: Go library, clean programmatic API (d2oracle), beautiful SVG output, pluggable layout engines (dagre, ELK, TALA). Not natively supported in GitHub Markdown.
+- **D2**: Go library, clean programmatic API (d2oracle), beautiful SVG output, pluggable layout engines (dagre, ELK, TALA). Not natively supported in GitHub Markdown. `blobd2` bundles **dagre only** (pure Go; ELK needs an embedded JS runtime, TALA is proprietary) and emits **SVG only** (D2's PNG path needs headless Chromium).
 - **Mermaid**: JavaScript, renders natively in GitHub/GitLab Markdown. Best for sequence diagrams and docs-as-code in git platforms.
 - **Graphviz**: Still the best for algorithmic layout control and large graphs. DOT language. D2 can use Graphviz as a layout backend.
 - **Vega-Lite**: Takes JSON spec directly — best for tabular/statistical data visualization rather than graph topology.
@@ -88,11 +101,23 @@ INSERT INTO render_queue SELECT id FROM diagram_spec WHERE svg IS NULL;
 
 ## Connection Points
 
-- **Kroki rendering via blobhttp**: `http_post(kroki_url, body := diagram_source)` — the render call is just another HTTP scalar function. No Python UDF needed if we use blobhttp directly.
-- **Diagram source via blobtemplates**: `template_render(d2_template, json_object('nodes', ..., 'edges', ...))` generates D2/DOT/Mermaid source text from metadata.
+- **D2 rendering via blobd2 (native, primary)**: `d2_svg(diagram_source, options_json)`
+  renders D2 → SVG in-process — no HTTP, no Docker, no browser. This is the default
+  for D2. Options (theme, sketch, pad, …) pass as a JSON blob. SVG only; rasterize
+  to PNG client-side if needed.
+- **Other engines via blobhttp → Kroki**: `http_post(kroki_url, body := diagram_source)`
+  for Mermaid/PlantUML/Graphviz/Vega-Lite — the render call is just another HTTP
+  scalar function, no Python UDF needed.
+- **Diagram source via blobtemplates**: `template_render(d2_template, json_object('nodes', ..., 'edges', ...))` generates D2/DOT/Mermaid source text from metadata. blobd2 renders; blobtemplates composes — they pair directly (`d2_svg(template_render(...))`).
 - **ER diagrams from blobapi catalog**: The `api_spec`/`api_path`/`api_operation` tables are a natural source for API dependency graphs and schema diagrams.
 - **Vega-Lite from blobapi weather data**: The HDD time-series data is a direct Vega-Lite use case — `json_object()` builds the spec, Kroki renders it.
 
 ## Open Question
 
 What specific domain is this for? (infrastructure diagrams, data lineage, ER diagrams from schema, something else?) — this determines which Kroki engines and template patterns to prioritize first.
+
+**Partial answer (2026-06):** the first target is **visualizing the operation of the
+blob\* tools** — `blobfilters` domain-fingerprint / resolution-sieve stages and the
+table-extraction / bounding-box pipeline, especially intermediate results. These are
+graph-topology-shaped, so D2-via-`blobd2` (dagre) is the right engine rather than
+Vega-Lite. See `blobd2/docs/Blobd2 Project.md`.
