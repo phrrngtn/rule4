@@ -29,7 +29,7 @@ JOIN sys.types  ty ON ty.user_type_id = c.user_type_id
 LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id
 LEFT JOIN sys.tables t ON t.object_id = o.object_id
 LEFT JOIN sys.change_tracking_tables ct ON ct.object_id = o.object_id
-WHERE o.type IN ('U','V','IF','TF')
+WHERE o.type IN ('U','V','IF','TF') AND o.is_ms_shipped = 0
 
 UNION ALL
 -- (2) primary keys / unique constraints
@@ -58,6 +58,7 @@ JOIN sys.schemas s ON s.schema_id = o.schema_id
 JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
 JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
 WHERE i.is_primary_key = 0 AND i.is_unique_constraint = 0 AND i.type IN (1,2)
+  AND o.is_ms_shipped = 0          -- else every system base-table index leaks in
 
 UNION ALL
 -- (4) foreign keys (the referencing -> referenced pairing)
