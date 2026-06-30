@@ -44,7 +44,7 @@ plan.declare([{"dataserver": SRV, "database": DB, "source_object": "widget",
 print("sampling plan :", plan.specs())
 
 # provision: read (1)+(2) -> build (3)'s structure, self-hosted in the plan's catalog
-print("provisioned   :", provision(plan, reg, T))
+print("provisioned   :", provision(plan, reg, T, dialect="sqlite"))
 print("catalog tables:", [t["table_name"] for t in plan.writer.current_tables()])
 print("widget columns:", [c["column_name"] for c in plan.writer.current_columns("widget")])
 
@@ -53,11 +53,15 @@ rep = dl.Replica(plan.writer, "widget", "id")
 rows = src.execute("SELECT id, name, price FROM widget").fetchall()
 rep.apply(upserts=[{"id": r[0], "name": r[1], "price": r[2]} for r in rows], snapshot_time=T)
 
-with dl.attach_lake(f"sqlite:{BASE}/lake_cat.sqlite", f"{BASE}/lake_data") as c:
+from sqlalchemy import column, select, table  # noqa: E402
+
+_widget = table("widget", column("id"), column("name"), column("price"), schema="lake")
+_samp = table("sampling", column("source_object"), column("target_table"), column("mode"), schema="lake")
+with dl.lake_reader(f"sqlite:{BASE}/lake_cat.sqlite", f"{BASE}/lake_data") as conn:
     print("\nreplica payload (3)  :",
-          c.execute("SELECT id, name, price FROM lake.widget ORDER BY id").fetchall())
+          conn.execute(select(_widget).order_by(_widget.c.id)).fetchall())
     print("sampling table  (2)  : same catalog ->",
-          c.execute("SELECT source_object, target_table, mode FROM lake.sampling").fetchall())
+          conn.execute(select(_samp)).fetchall())
 
 reg.dispose()
 plan.dispose()

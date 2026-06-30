@@ -11,27 +11,30 @@ spec at `sampling`/`column_role` themselves and it can reconstruct its own topol
 """
 import os
 
-import duckdb
+from sqlalchemy import Boolean, Column, MetaData, String, Table, and_, select
 
 import ducklake_oob_writer as dl
+from lakeio import write_parquet
 from schema_evolution import desired_columns
 
 _DDL = [("dataserver", "varchar"), ("database", "varchar"), ("source_schema", "varchar"),
         ("source_object", "varchar"), ("key_column", "varchar"), ("mode", "varchar"),
         ("target_table", "varchar"), ("enabled", "boolean")]
-_PARQUET_DDL = ("dataserver VARCHAR, database VARCHAR, source_schema VARCHAR, "
-                "source_object VARCHAR, key_column VARCHAR, mode VARCHAR, "
-                "target_table VARCHAR, enabled BOOLEAN")
-_FIELDS = [n for n, _ in _DDL]
+_SAMPLING_COLS = [("dataserver", String), ("database", String), ("source_schema", String),
+                  ("source_object", String), ("key_column", String), ("mode", String),
+                  ("target_table", String), ("enabled", Boolean)]
 
 # Connections — ODBC *components* (never a password; integrated security) in the catalog.
 _CONN_DDL = [("dataserver", "varchar"), ("database", "varchar"), ("dialect", "varchar"),
              ("odbc_driver", "varchar"), ("odbc_server", "varchar"),
              ("odbc_database", "varchar"), ("trusted", "boolean"), ("extra", "varchar")]
-_CONN_PARQUET_DDL = ("dataserver VARCHAR, database VARCHAR, dialect VARCHAR, "
-                     "odbc_driver VARCHAR, odbc_server VARCHAR, odbc_database VARCHAR, "
-                     "trusted BOOLEAN, extra VARCHAR")
-_CONN_FIELDS = [n for n, _ in _CONN_DDL]
+_CONN_COLS = [("dataserver", String), ("database", String), ("dialect", String),
+              ("odbc_driver", String), ("odbc_server", String), ("odbc_database", String),
+              ("trusted", Boolean), ("extra", String)]
+
+# lake.* SA Core tables for reads through the duckdb-engine lake_reader
+_SAMPLING = Table("sampling", MetaData(), *[Column(n, t) for n, t in _SAMPLING_COLS], schema="lake")
+_CONN = Table("connections", MetaData(), *[Column(n, t) for n, t in _CONN_COLS], schema="lake")
 
 
 class SamplingPlan:
@@ -59,21 +62,18 @@ class SamplingPlan:
                 for s in specs]
         tag = f"sampling__{sample_time:%Y%m%dT%H%M%S}"
         pq = os.path.join(self.data_path, "main", "sampling", f"{tag}.parquet")
-        d = duckdb.connect()
-        d.execute(f"CREATE TABLE s ({_PARQUET_DDL})")
-        d.executemany(f"INSERT INTO s VALUES ({','.join('?' * len(_FIELDS))})", rows)
-        d.execute(f"COPY s TO '{pq}' (FORMAT PARQUET)")
-        d.close()
+        write_parquet(_SAMPLING_COLS, rows, pq, name="s")
         self.writer.register_parquet("sampling", pq, rel_path=f"{tag}.parquet",
                                      snapshot_time=sample_time)
 
     def specs(self):
-        """The enabled replica specs currently in the plan."""
-        with dl.attach_lake(f"sqlite:{self.catalog_path}", self.data_path) as c:
-            return c.execute(
-                "SELECT dataserver, database, source_schema, source_object, key_column, "
-                "mode, target_table FROM lake.sampling WHERE enabled "
-                "ORDER BY target_table").fetchall()
+        """The enabled replica specs currently in the plan (SA Core via lake_reader)."""
+        s = _SAMPLING
+        stmt = (select(s.c.dataserver, s.c.database, s.c.source_schema, s.c.source_object,
+                       s.c.key_column, s.c.mode, s.c.target_table)
+                .where(s.c.enabled).order_by(s.c.target_table))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(stmt).fetchall()
 
     def declare_connection(self, conns, sample_time):
         """Append ODBC connection specs (dicts) — components only, never a password."""
@@ -82,22 +82,18 @@ class SamplingPlan:
                  c.get("trusted", True), c.get("extra", "")) for c in conns]
         tag = f"connections__{sample_time:%Y%m%dT%H%M%S}"
         pq = os.path.join(self.data_path, "main", "connections", f"{tag}.parquet")
-        d = duckdb.connect()
-        d.execute(f"CREATE TABLE c ({_CONN_PARQUET_DDL})")
-        d.executemany(f"INSERT INTO c VALUES ({','.join('?' * len(_CONN_FIELDS))})", rows)
-        d.execute(f"COPY c TO '{pq}' (FORMAT PARQUET)")
-        d.close()
+        write_parquet(_CONN_COLS, rows, pq, name="c")
         self.writer.register_parquet("connections", pq, rel_path=f"{tag}.parquet",
                                      snapshot_time=sample_time)
 
     def connection_string(self, dataserver, database):
         """Assemble the ODBC connection string for a source from its stored components."""
         from tailing import odbc_connection_string
-        with dl.attach_lake(f"sqlite:{self.catalog_path}", self.data_path) as c:
-            row = c.execute(
-                "SELECT odbc_driver, odbc_server, odbc_database, trusted, extra "
-                "FROM lake.connections WHERE dataserver = ? AND database = ?",
-                [dataserver, database]).fetchone()
+        c = _CONN
+        stmt = (select(c.c.odbc_driver, c.c.odbc_server, c.c.odbc_database, c.c.trusted, c.c.extra)
+                .where(and_(c.c.dataserver == dataserver, c.c.database == database)))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            row = conn.execute(stmt).fetchone()
         if row is None:
             raise KeyError(f"no connection for {dataserver}/{database}")
         driver, server, db, trusted, extra = row
@@ -107,7 +103,8 @@ class SamplingPlan:
         self._eng.dispose()
 
 
-def provision(plan, column_role_registry, when, *, replica_writer=None, target_schema="main"):
+def provision(plan, column_role_registry, when, *, replica_writer=None, target_schema="main",
+              dialect="sqlserver"):
     """Read the sampling plan and, for each enabled spec, create or evolve the DuckLake
     replica with the source's columns as column_role knew them at `when`. Replicas land in
     `replica_writer` (default: the plan's own catalog — self-hosting). Returns a report per
@@ -115,7 +112,7 @@ def provision(plan, column_role_registry, when, *, replica_writer=None, target_s
     w = replica_writer or plan.writer
     report = []
     for (srv, db, ss, obj, key, mode, tgt) in plan.specs():
-        desired = desired_columns(column_role_registry, srv, db, obj, when, schema=ss)
+        desired = desired_columns(column_role_registry, srv, db, obj, when, schema=ss, dialect=dialect)
         if not desired:
             report.append({"target": tgt, "action": "skipped (no schema in column_role)"})
             continue

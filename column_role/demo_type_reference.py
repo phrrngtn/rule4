@@ -13,7 +13,7 @@ import sqlite3
 
 import ducklake_oob_writer as dl
 from registry import Registry, capture
-from type_reference import RESOLVE_SQL, seed_into
+from type_reference import resolve_query, seed_into
 
 BASE = "/tmp/typeref"
 shutil.rmtree(BASE, ignore_errors=True)
@@ -30,9 +30,9 @@ reg = Registry(f"{BASE}/cat.sqlite", f"{BASE}/data")
 reg.record(capture(src.cursor(), "sqlite", SRV, DB, T), T)
 seed_into(reg._w, reg.data_path, T)
 
-# resolve via a JOIN — column_role ⋈ type_reference, no Python type dict
-with dl.attach_lake(f"sqlite:{BASE}/cat.sqlite", f"{BASE}/data") as c:
-    rows = c.execute(RESOLVE_SQL, ["sqlite", SRV, DB]).fetchall()
+# resolve via a JOIN — column_role ⋈ type_reference, no Python type dict (SA Core)
+with dl.lake_reader(f"sqlite:{BASE}/cat.sqlite", f"{BASE}/data") as conn:
+    rows = conn.execute(resolve_query("sqlite", SRV, DB)).fetchall()
 
 print("column           data_type  ->  sa_type / ducklake_type / transform   (odbc)")
 for obj, col, dtype, odbc, sa, dlt, xf, lob in rows:

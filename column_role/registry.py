@@ -17,11 +17,28 @@ import datetime as _dt
 import os
 import re
 
-import duckdb
+from sqlalchemy import (BigInteger, Column, DateTime, MetaData, String, Table, and_, func,
+                        select, text)
 
 import ducklake_oob_writer as dl
+from lakeio import write_parquet
 
 _SQLDIR = os.path.join(os.path.dirname(__file__), "sql")
+
+# lake.column_role as a SA Core table — for reads through the duckdb-engine lake_reader
+_LAKE = MetaData()
+_CR = Table("column_role", _LAKE,
+            Column("dataserver", String), Column("database", String),
+            Column("sample_time", DateTime), Column("schema_name", String),
+            Column("object_name", String), Column("grouping_kind", String),
+            Column("member_name", String), Column("ordinal", BigInteger),
+            Column("data_type", String), Column("referenced_object", String),
+            Column("referenced_member", String), schema="lake")
+# colspecs (SA types) for the local staging table that write_parquet COPYs to Parquet
+_CAP_COLS = [("dataserver", String), ("database", String), ("sample_time", DateTime),
+             ("schema_name", String), ("object_name", String), ("grouping_kind", String),
+             ("member_name", String), ("ordinal", BigInteger), ("data_type", String),
+             ("referenced_object", String), ("referenced_member", String)]
 
 # the column_role columns we keep in the registry (a useful subset of the 28), in order
 _SUBSET = ["schema_name", "object_name", "grouping_kind", "member_name",
@@ -75,28 +92,27 @@ class Registry:
             return
         tag = f"{rows[0][0]}__{rows[0][1]}__{sample_time:%Y%m%dT%H%M%S}".replace("/", "_")
         pq = os.path.join(self.data_path, "main", "column_role", f"{tag}.parquet")
-        d = duckdb.connect()
-        d.execute(f"CREATE TABLE cap ({_PARQUET_DDL})")
-        d.executemany(f"INSERT INTO cap VALUES ({','.join('?' * len(_COLS))})", rows)
-        d.execute(f"COPY cap TO '{pq}' (FORMAT PARQUET)")
-        d.close()
+        write_parquet(_CAP_COLS, rows, pq, name="cap")
         self._w.register_parquet("column_role", pq, rel_path=f"{tag}.parquet", snapshot_time=sample_time)
 
     def dispose(self):
         self._eng.dispose()
 
     def query(self, sql: str):
-        with dl.attach_lake(f"sqlite:{self.catalog_path}", self.data_path) as c:
-            return c.execute(sql).fetchall()
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(text(sql)).fetchall()
 
     def schema_as_of(self, dataserver: str, database: str, when):
-        """The schema for (dataserver, database) as the latest capture <= `when`."""
-        with dl.attach_lake(f"sqlite:{self.catalog_path}", self.data_path) as c:
-            return c.execute(
-                "SELECT schema_name, object_name, grouping_kind, member_name, ordinal, "
-                "data_type, referenced_object, referenced_member FROM lake.column_role "
-                "WHERE dataserver = ? AND database = ? AND sample_time = ("
-                "  SELECT max(sample_time) FROM lake.column_role "
-                "  WHERE dataserver = ? AND database = ? AND sample_time <= ?) "
-                "ORDER BY schema_name, object_name, grouping_kind, ordinal",
-                [dataserver, database, dataserver, database, when]).fetchall()
+        """The schema for (dataserver, database) as the latest capture <= `when` — SA Core
+        through the duckdb-engine lake_reader."""
+        cr = _CR
+        latest = (select(func.max(cr.c.sample_time))
+                  .where(and_(cr.c.dataserver == dataserver, cr.c.database == database,
+                              cr.c.sample_time <= when)).scalar_subquery())
+        stmt = (select(cr.c.schema_name, cr.c.object_name, cr.c.grouping_kind, cr.c.member_name,
+                       cr.c.ordinal, cr.c.data_type, cr.c.referenced_object, cr.c.referenced_member)
+                .where(and_(cr.c.dataserver == dataserver, cr.c.database == database,
+                            cr.c.sample_time == latest))
+                .order_by(cr.c.schema_name, cr.c.object_name, cr.c.grouping_kind, cr.c.ordinal))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(stmt).fetchall()

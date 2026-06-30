@@ -11,63 +11,61 @@ ColumnCollection then carries the whole round trip:
   (4) populate_replica(rep, rs) — merge tail results into a current-state replica;
   (5) populate_ducklake(w, rs)  — append tail results to DuckLake as a payload snapshot.
 
-The funky-value transforms in (3) are ``@compiles`` constructs rendering per the source
-dialect — the legitimate dialect compiler, since the *source* is a real portability
-surface (unlike the monomorphic DuckDB-qua-Parquet tool, which stays raw).
+Every type fact (DuckLake type, SA type, extraction transform) comes from the single source
+of truth — the ``type_reference`` reference data (``TYPES``) — resolved by ``(dialect,
+source_type)``. No type dict here. The funky-value transforms in (3) are ``@compiles``
+constructs rendering per the source dialect (the *source* is a real portability surface).
 """
-from sqlalchemy import (BigInteger, Boolean, Column as SACol, Date, DateTime, Float, Integer,
-                        MetaData, Numeric, String, Table, column as sqlcolumn, select,
-                        table as sqltable)
+import sqlalchemy
+from sqlalchemy import (Column as SACol, MetaData, String, Table, cast, column as sqlcolumn,
+                        select, table as sqltable)
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import ColumnElement
 
-from schema_evolution import ducklake_type
-
-# source base type -> SQLAlchemy type for the source-side model (funky -> String/text)
-_SA_TYPE = {
-    "int": BigInteger, "integer": BigInteger, "bigint": BigInteger, "smallint": Integer,
-    "tinyint": Integer, "serial": BigInteger,
-    "real": Float, "float": Float, "double": Float, "double precision": Float,
-    "numeric": Numeric, "decimal": Numeric, "money": Numeric,
-    "boolean": Boolean, "bool": Boolean, "bit": Boolean,
-    "date": Date, "timestamp": DateTime, "datetime": DateTime, "datetime2": DateTime,
-}
-
-
-def _sa_type(source_type):
-    return _SA_TYPE.get((source_type or "").lower().split("(", 1)[0].strip(), String)
+from type_reference import TYPES
 
 
 class Col:
-    """One column: source name + source type; the DuckLake type is derived."""
+    """One column. Every type fact is resolved from ``type_reference`` (no dict)."""
 
-    def __init__(self, name, source_type, ordinal=None):
-        self.name, self.source_type, self.ordinal = name, source_type, ordinal
+    def __init__(self, name, source_type, ordinal=None, dialect="sqlserver"):
+        self.name, self.source_type, self.ordinal, self.dialect = name, source_type, ordinal, dialect
+
+    @property
+    def _r(self):
+        return TYPES.resolve(self.dialect, self.source_type)
 
     @property
     def ducklake_type(self):
-        return ducklake_type(self.source_type)
+        return self._r.ducklake_type
+
+    @property
+    def sa_type(self):
+        return getattr(sqlalchemy, self._r.sa_type, String)
+
+    @property
+    def transform(self):
+        return self._r.transform
 
 
 class ColumnCollection:
-    def __init__(self, schema, name, columns, *, key=None):
-        self.schema, self.name, self.columns, self.key = schema, name, columns, key
+    def __init__(self, schema, name, columns, *, key=None, dialect="sqlserver"):
+        self.schema, self.name, self.columns, self.key, self.dialect = schema, name, columns, key, dialect
 
     @classmethod
     def from_column_role(cls, registry, dataserver, database, table, when, *,
-                         schema="main", key=None, grouping_kind="table"):
+                         schema="main", key=None, grouping_kind="table", dialect="sqlserver"):
         """Assemble a ColumnCollection from a column_role capture (the schema time-series)."""
-        cols = [Col(member_name, data_type, ordinal)
+        cols = [Col(member_name, data_type, ordinal, dialect)
                 for (sname, oname, gkind, member_name, ordinal, data_type, _ro, _rm)
                 in registry.schema_as_of(dataserver, database, when)
                 if gkind == grouping_kind and oname == table and sname == schema]
-        return cls(schema, table, cols, key=key)
+        return cls(schema, table, cols, key=key, dialect=dialect)
 
     # (1) a SQLAlchemy model (Table) for the source object
     def sqlalchemy_table(self, metadata=None, *, schema=None):
         md = metadata if metadata is not None else MetaData()
-        return Table(self.name, md, *[SACol(c.name, _sa_type(c.source_type)) for c in self.columns],
-                     schema=schema)
+        return Table(self.name, md, *[SACol(c.name, c.sa_type) for c in self.columns], schema=schema)
 
     # (2) record the object in DuckLake speak — create the replica table (or evolve it)
     def record_in_ducklake(self, writer, *, schema_name="main", snapshot_time=None):
@@ -83,7 +81,7 @@ class ColumnCollection:
         table. The funky transforms render per ``engine``'s dialect at compile time. Add
         ``.where(...)`` (the watermark predicate) / swap the FROM for ``CHANGETABLE``."""
         src = sqltable(self.name, *[sqlcolumn(c.name) for c in self.columns], schema=source_schema)
-        return select(*[_extract(src.c[c.name], c.source_type) for c in self.columns]).select_from(src)
+        return select(*[_extract(src.c[c.name], c.transform) for c in self.columns]).select_from(src)
 
     # (4) populate a current-state replica from tail results (merge)
     def populate_replica(self, replica, rows, *, snapshot_time=None):
@@ -103,7 +101,7 @@ class ColumnCollection:
 
 
 # --- dialect-specific value transforms for funky source types (source is polymorphic ->
-#     @compiles constructs, compiled per the source dialect) ---
+#     @compiles constructs, compiled per the source dialect; named by type_reference.transform) ---
 class _Transform(ColumnElement):
     inherit_cache = True
 
@@ -165,13 +163,15 @@ def _iso_default(el, c, **kw):
     return f"CAST({c.process(el.col, **kw)} AS VARCHAR)"
 
 
-_FUNKY = {"binary": to_hex, "varbinary": to_hex, "image": to_hex, "timestamp": to_hex,
-          "rowversion": to_hex, "geography": to_wkt, "geometry": to_wkt, "datetimeoffset": to_iso}
+_TRANSFORMS = {"to_hex": to_hex, "to_wkt": to_wkt, "to_iso": to_iso}
 
 
-def _extract(col, source_type):
-    if source_type:
-        ctor = _FUNKY.get(source_type.lower().split("(", 1)[0].strip())
-        if ctor:
-            return ctor(col).label(col.name)
-    return col
+def _extract(col, transform):
+    """The projected expression for a column, by the transform name from type_reference:
+    a dialect-aware construct, a plain CAST-to-text, or the bare column."""
+    if not transform:
+        return col
+    if transform == "to_text":
+        return cast(col, String).label(col.name)
+    ctor = _TRANSFORMS.get(transform)
+    return ctor(col).label(col.name) if ctor else col

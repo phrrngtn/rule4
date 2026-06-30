@@ -16,14 +16,27 @@ only read it for tracking, so normalisation doesn't earn its keep.
 Columns: dialect, type_name, odbc_code, odbc_name, sa_type, ducklake_type, transform, is_lob.
 """
 import os
+from collections import namedtuple
 
-import duckdb
+from sqlalchemy import (BigInteger, Boolean, Column, MetaData, String, Table, and_, func,
+                        select)
 
 import ducklake_oob_writer as dl
+from lakeio import write_parquet
+from registry import _CR
 
 _DDL = [("dialect", "varchar"), ("type_name", "varchar"), ("odbc_code", "int64"),
         ("odbc_name", "varchar"), ("sa_type", "varchar"), ("ducklake_type", "varchar"),
         ("transform", "varchar"), ("is_lob", "boolean")]
+# colspecs (SA types) for the staging table that write_parquet COPYs
+_SEED_COLS = [("dialect", String), ("type_name", String), ("odbc_code", BigInteger),
+              ("odbc_name", String), ("sa_type", String), ("ducklake_type", String),
+              ("transform", String), ("is_lob", Boolean)]
+# lake.type_reference as a SA Core table — for reads / the resolution JOIN via lake_reader
+_TR = Table("type_reference", MetaData(),
+            Column("dialect", String), Column("type_name", String), Column("odbc_code", BigInteger),
+            Column("odbc_name", String), Column("sa_type", String), Column("ducklake_type", String),
+            Column("transform", String), Column("is_lob", Boolean), schema="lake")
 _PARQUET_DDL = ("dialect VARCHAR, type_name VARCHAR, odbc_code BIGINT, odbc_name VARCHAR, "
                 "sa_type VARCHAR, ducklake_type VARCHAR, transform VARCHAR, is_lob BOOLEAN")
 
@@ -84,27 +97,58 @@ SEED = [
 ]
 
 
+ResolvedType = namedtuple("ResolvedType",
+                          "odbc_code odbc_name sa_type ducklake_type transform is_lob")
+# unknown type -> treat as text (transit-safe), the conservative default
+_DEFAULT = ResolvedType(None, "SQL_VARCHAR", "String", "varchar", None, False)
+
+
+class TypeReference:
+    """The single source of type truth — built from the reference data (the ``SEED`` rows,
+    or a live ``type_reference`` table) and indexed by ``(dialect, type_name)``. Resolving a
+    source type to its SA type / DuckLake type / extraction transform is one lookup; there
+    is no per-type code anywhere else."""
+
+    def __init__(self, rows=SEED):
+        self._ix = {(d.lower(), tn.lower()): ResolvedType(oc, on, sa, dlt, xf, lob)
+                    for (d, tn, oc, on, sa, dlt, xf, lob) in rows}
+
+    def resolve(self, dialect, type_name):
+        base = (type_name or "").split("(", 1)[0].strip().lower()
+        return self._ix.get(((dialect or "").lower(), base), _DEFAULT)
+
+    @classmethod
+    def from_lake(cls, catalog_path, data_path):
+        """Load the reference from a live DuckLake ``type_reference`` table (SA Core read)."""
+        stmt = select(_TR.c.dialect, _TR.c.type_name, _TR.c.odbc_code, _TR.c.odbc_name,
+                      _TR.c.sa_type, _TR.c.ducklake_type, _TR.c.transform, _TR.c.is_lob)
+        with dl.lake_reader(f"sqlite:{catalog_path}", data_path) as conn:
+            return cls(conn.execute(stmt).fetchall())
+
+
+# the default reference (SEED-backed); swap for TypeReference.from_lake(...) to use a live
+# table populated from ODBC SQLGetTypeInfo
+TYPES = TypeReference()
+
+
 def seed_into(writer, data_path, sample_time, *, schema_name="main"):
     """Materialise the reference table in a DuckLake catalog (idempotent-ish: one snapshot)."""
     writer.create_table(schema_name, "type_reference", _DDL)
     tdir = os.path.join(data_path, schema_name, "type_reference")
     os.makedirs(tdir, exist_ok=True)
     pq = os.path.join(tdir, "seed.parquet")
-    d = duckdb.connect()
-    d.execute(f"CREATE TABLE r ({_PARQUET_DDL})")
-    d.executemany(f"INSERT INTO r VALUES ({','.join('?' * len(_DDL))})", SEED)
-    d.execute(f"COPY r TO '{pq}' (FORMAT PARQUET)")
-    d.close()
+    write_parquet(_SEED_COLS, SEED, pq, name="r")
     writer.register_parquet("type_reference", pq, rel_path="seed.parquet", snapshot_time=sample_time)
 
 
-# The resolution is a JOIN — no per-type Python. Captured columns ⋈ type_reference.
-RESOLVE_SQL = """
-SELECT cr.object_name, cr.member_name, cr.data_type,
-       tr.odbc_name, tr.sa_type, tr.ducklake_type, tr.transform, tr.is_lob
-FROM lake.column_role AS cr
-JOIN lake.type_reference AS tr
-  ON tr.dialect = ? AND upper(tr.type_name) = upper(cr.data_type)
-WHERE cr.dataserver = ? AND cr.database = ? AND cr.grouping_kind = 'table'
-ORDER BY cr.object_name, cr.ordinal
-"""
+def resolve_query(dialect, dataserver, database, *, grouping_kind="table"):
+    """The resolution as a SA Core JOIN — captured columns ⋈ type_reference, no per-type
+    Python. Run it through ``dl.lake_reader``."""
+    cr, tr = _CR, _TR
+    return (select(cr.c.object_name, cr.c.member_name, cr.c.data_type,
+                   tr.c.odbc_name, tr.c.sa_type, tr.c.ducklake_type, tr.c.transform, tr.c.is_lob)
+            .select_from(cr.join(tr, and_(tr.c.dialect == dialect,
+                                          func.upper(tr.c.type_name) == func.upper(cr.c.data_type))))
+            .where(and_(cr.c.dataserver == dataserver, cr.c.database == database,
+                        cr.c.grouping_kind == grouping_kind))
+            .order_by(cr.c.object_name, cr.c.ordinal))

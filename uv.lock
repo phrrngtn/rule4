@@ -198,6 +198,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", marker = "extra == 'maintenance'", specifier = ">=1.3" },
+    { name = "duckdb-engine", marker = "extra == 'maintenance'", specifier = ">=0.13" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pytz", marker = "extra == 'maintenance'" },
     { name = "s3fs", marker = "extra == 's3'" },
@@ -208,6 +209,7 @@ provides-extras = ["maintenance", "s3"]
 [package.metadata.requires-dev]
 dev = [
     { name = "duckdb", specifier = ">=1.5" },
+    { name = "duckdb-engine", specifier = ">=0.13" },
     { name = "psycopg2-binary", specifier = ">=2.9.12" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytz" },
@@ -753,7 +755,7 @@ dependencies = [
 requires-dist = [
     { name = "docopt", specifier = ">=0.6.2" },
     { name = "duckdb", specifier = ">=1.5.4" },
-    { name = "duckdb-engine", specifier = ">=0.17.0" },
+    { name = "duckdb-engine", specifier = ">=0.13" },
     { name = "ducklake-oob-writer", editable = "../ducklake_oob_writer" },
     { name = "flask", specifier = ">=3.1.3" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },

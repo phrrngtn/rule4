@@ -33,7 +33,7 @@ src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
 
 reg = Registry(f"{BASE}/reg_cat.sqlite", f"{BASE}/reg_data")
 reg.record(capture(src.cursor(), "sqlite", SRV, DB, T), T)
-cc = ColumnCollection.from_column_role(reg, SRV, DB, "widget", T, key="id")
+cc = ColumnCollection.from_column_role(reg, SRV, DB, "widget", T, key="id", dialect="sqlite")
 print("ColumnCollection:", cc.name, [(c.name, c.source_type, c.ducklake_type) for c in cc.columns])
 
 # (1) a SQLAlchemy model
@@ -68,9 +68,16 @@ ColumnCollection("main", "widget_log", cc.columns, key="id").record_in_ducklake(
 log = ColumnCollection("main", "widget_log", cc.columns, key="id")
 print("(5) ducklake    :", log.populate_ducklake(w, results, snapshot_time=T))
 
-with dl.attach_lake(f"sqlite:{BASE}/lake_cat.sqlite", f"{BASE}/lake_data") as c:
-    print("    replica rows:", c.execute("SELECT id, name, price FROM lake.widget ORDER BY id").fetchall())
-    print("    log rows    :", c.execute("SELECT id, name, price FROM lake.widget_log ORDER BY id").fetchall())
+from sqlalchemy import column, select, table  # noqa: E402
+
+
+def _t(name):
+    return table(name, column("id"), column("name"), column("price"), schema="lake")
+
+
+with dl.lake_reader(f"sqlite:{BASE}/lake_cat.sqlite", f"{BASE}/lake_data") as conn:
+    print("    replica rows:", conn.execute(select(_t("widget")).order_by(column("id"))).fetchall())
+    print("    log rows    :", conn.execute(select(_t("widget_log")).order_by(column("id"))).fetchall())
 
 reg.dispose()
 eng.dispose()
