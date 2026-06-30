@@ -76,6 +76,13 @@ class ColumnCollection:
                 if gkind == grouping_kind and oname == table and sname == schema]
         return cls(schema, table, cols, key=key, dialect=dialect)
 
+    # migrate this revision's schema to another revision's — schema-only ALTER TABLE DDL
+    def migration_to(self, other, *, dialect=None):
+        """The ``ALTER TABLE`` statements taking *this* revision's schema to ``other``'s
+        (both directions supported by swapping the call). See ``migration.migration_ddl``."""
+        from migration import migration_ddl
+        return migration_ddl(self, other, dialect=dialect)
+
     # (1) a SQLAlchemy model (Table) for the source object
     def sqlalchemy_table(self, metadata=None, *, schema=None):
         md = metadata if metadata is not None else MetaData()
