@@ -298,3 +298,48 @@ class ChangeTrackingDriver:
 
     def snapshot_time(self, tt):
         return self.epoch + _dt.timedelta(**{self.unit: int(tt)})
+
+
+class BacklogDriver:
+    """Acquisition from a **trigger- (or application-) maintained backlog** — an append-only
+    log of *after-images*, the Snodgrass backlog relation. Unlike :class:`UserColumnDriver`
+    (which reads the *live* table, one row per key, latest state only) the backlog holds
+    *every version*: one row per change, carrying the after-image, its transaction-time
+    (``ts_column``) and operation (``op_column``). So a key changed three times yields three
+    backlog rows — the intermediate versions a net/current poll would skip are retained.
+
+    Poll ``WHERE ts > watermark ORDER BY ts``; ``sync`` staples by ``ts`` (one snapshot per
+    distinct transaction-time) and feeds the after-image apply path. ``ts`` is a real
+    timestamp, so the default ``snapshot_time`` mapping applies; watermark = ``max(ts)``. Pure
+    SA Core (a backlog is an ordinary table — no dialect-specific TVF), with the same
+    type-aware projection as the rest of the collection.
+
+    ``op_column`` values are normalized to I/U/D via the configured token sets; ``op_column=
+    None`` treats every row as an upsert (an insert-only after-image log)."""
+
+    def __init__(self, backlog_table, ts_column, op_column=None, *, key,
+                 delete_ops=("D", "DELETE", "delete"), insert_ops=("I", "INSERT", "insert")):
+        self.backlog_table, self.ts_column, self.op_column, self.key = (
+            backlog_table, ts_column, op_column, key)
+        self.delete_ops, self.insert_ops = list(delete_ops), list(insert_ops)
+
+    def query(self, cc, watermark, *, source_schema=None):
+        extra = [sqlcolumn(self.ts_column)]
+        if self.op_column:
+            extra.append(sqlcolumn(self.op_column))
+        src = sqltable(self.backlog_table, *[sqlcolumn(c.name) for c in cc.columns], *extra,
+                       schema=source_schema)
+        if self.op_column:
+            opc = src.c[self.op_column]
+            op = case((opc.in_(self.delete_ops), "D"), (opc.in_(self.insert_ops), "I"), else_="U")
+        else:
+            op = literal("U")
+        return (select(*[_extract(src.c[c.name], c.transform) for c in cc.columns],
+                       op.label("__op"),
+                       src.c[self.key].label("__key"),
+                       src.c[self.ts_column].label("__tt"))
+                .where(src.c[self.ts_column] > watermark)
+                .order_by(src.c[self.ts_column]))
+
+    def next_watermark(self, rows, prev):
+        return max((r["__tt"] for r in rows), default=prev)
