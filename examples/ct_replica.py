@@ -15,11 +15,13 @@ Boundary: this file is the SQL-Server-specific consumer. The generic apply/merge
 `ducklake_oob_writer` (`Replica`, `delete_rows`, `register_parquet`); nothing here reaches
 into it beyond the public API.
 
-Prerequisites:
-  * the `sql2025` container running, the `rule4_test_mssql` ODBC DSN configured;
-  * the SA password in the environment:
-        export MSSQL_SA_PW=$(docker inspect sql2025 \
-            --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^MSSQL_SA_PASSWORD=//p')
+Integrated security — **no credentials in this file**. The SQL Server (gfe) is reached with
+`Trusted_Connection=yes`, which uses your Kerberos ticket. Prerequisites:
+  * a Kerberos ticket as yourself:  ``kinit paulharrington@PHRRNGTN.ARPA``
+  * the macOS Kerberos config at ``/Library/Preferences/edu.mit.Kerberos`` with ``rdns = false``
+    (the MS ODBC driver reverse-canonicalizes hostnames otherwise);
+  * the `gfe` SQL Server reachable and its `sql_gfe` service account healthy (password
+    set to never-expire — an expired one fails every login as 18452).
 Run:  uv run python examples/ct_replica.py
 """
 import datetime as dt
@@ -33,11 +35,13 @@ import ducklake_oob_writer as dl
 
 KEY = "id"
 COLS = [("id", "int64"), ("name", "varchar"), ("region", "varchar")]
+# integrated security: Trusted_Connection uses the caller's Kerberos ticket, no password
+MSSQL = ("DRIVER={ODBC Driver 18 for SQL Server};SERVER=gfe.phrrngtn.arpa;DATABASE=rule4_test;"
+         "Trusted_Connection=yes;Encrypt=yes;TrustServerCertificate=yes")
 
 
 def main():
-    pw = os.environ["MSSQL_SA_PW"]
-    src = pyodbc.connect(f"DSN=rule4_test_mssql;UID=sa;PWD={pw}", autocommit=True, timeout=15)
+    src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
 
     # --- enable Change Tracking + a fresh CT-enabled table ---
