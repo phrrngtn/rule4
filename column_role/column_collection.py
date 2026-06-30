@@ -21,10 +21,11 @@ from itertools import groupby
 
 import sqlalchemy
 from sqlalchemy import (Column as SACol, MetaData, String, Table, case, cast,
-                        column as sqlcolumn, literal, select, table as sqltable)
+                        column as sqlcolumn, literal, select, table as sqltable, text)
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import ColumnElement
 
+from extraction import tailing_projection
 from type_reference import TYPES
 
 
@@ -130,11 +131,15 @@ class ColumnCollection:
         ``HistoryReplica`` (or ``Replica``). Returns the new watermark. Assumes the source's
         transaction-time is monotonic."""
         rows, nw = self.changed_since(conn, watermark, driver, source_schema=source_schema)
+        # __tt is the staple (the thing that orders/groups commits); it need not be a
+        # timestamp — a driver whose staple is a logical version (CT/CDC LSN) supplies its
+        # own __tt -> datetime mapping via snapshot_time(); the default coerces ISO text.
+        to_time = getattr(driver, "snapshot_time", _as_dt)
         rows.sort(key=lambda r: r["__tt"])
         for tt, grp in groupby(rows, key=lambda r: r["__tt"]):
             ops = [{"op": r.get("__op", "U"), "key": r["__key"],
                     "row": {c.name: r[c.name] for c in self.columns}} for r in grp]
-            replica.apply_commit(ops, snapshot_time=_as_dt(tt))
+            replica.apply_commit(ops, snapshot_time=to_time(tt))
         return nw
 
 
@@ -244,3 +249,45 @@ class UserColumnDriver:
 
     def next_watermark(self, rows, prev):
         return max((r["__tt"] for r in rows), default=prev)
+
+
+class ChangeTrackingDriver:
+    """Acquisition via SQL Server **Change Tracking**. Three things make it differ from the
+    user-column driver — the seam absorbs each:
+
+    * **The staple is a logical version, not a data column.** ``CHANGETABLE(CHANGES t, @v)``
+      returns the *net* changes since version ``@v``; each row carries ``SYS_CHANGE_VERSION``
+      (the version at which that key last changed) — that is ``__tt``. Grouping by it yields
+      one DuckLake snapshot per distinct change-version (finer than one-per-poll). CT has no
+      commit *timestamp* (unlike CDC's ``lsn_time_mapping``), so ``snapshot_time`` maps the
+      integer version to a synthetic monotonic datetime (``epoch + version·unit``) — enough
+      for version-addressable ``AT (TIMESTAMP)`` time-travel; a CDC subclass would override it
+      with the real commit time.
+    * **The query is not SA-Core-expressible.** ``CHANGETABLE`` is a T-SQL TVF with bespoke
+      syntax, so ``query`` returns ``text()`` (raw, dialect-specific by necessity — the
+      sanctioned fallback) carrying the type-aware projection from ``extraction``.
+    * **The watermark is the server's current version, not max-over-rows.** The query selects
+      ``CHANGE_TRACKING_CURRENT_VERSION()`` as ``__hwm`` on every row so the next watermark is
+      read from the server, not inferred from the changes (which would miss the tail).
+
+    ``__op`` is CT's ``SYS_CHANGE_OPERATION`` (I/U/D) — fed straight to ``apply_commit``."""
+
+    def __init__(self, key, *, schema="dbo", epoch=_dt.datetime(2000, 1, 1), unit="seconds"):
+        self.key, self.schema, self.epoch, self.unit = key, schema, epoch, unit
+
+    def query(self, cc, watermark, *, source_schema=None):
+        sch = source_schema or self.schema
+        proj = tailing_projection([(c.name, c.source_type) for c in cc.columns],
+                                  "sqlserver", table_alias="b")
+        return text(
+            f"SELECT ct.SYS_CHANGE_OPERATION AS __op, ct.[{self.key}] AS __key, "
+            f"ct.SYS_CHANGE_VERSION AS __tt, CHANGE_TRACKING_CURRENT_VERSION() AS __hwm, {proj} "
+            f"FROM CHANGETABLE(CHANGES [{sch}].[{cc.name}], :wm) AS ct "
+            f"LEFT JOIN [{sch}].[{cc.name}] AS b ON b.[{self.key}] = ct.[{self.key}] "
+            f"ORDER BY ct.SYS_CHANGE_VERSION").bindparams(wm=watermark)
+
+    def next_watermark(self, rows, prev):
+        return max((r["__hwm"] for r in rows), default=prev)
+
+    def snapshot_time(self, tt):
+        return self.epoch + _dt.timedelta(**{self.unit: int(tt)})
