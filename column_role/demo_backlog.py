@@ -16,7 +16,8 @@ import os
 import shutil
 import sqlite3
 
-from sqlalchemy import create_engine
+from loguru import logger
+from sqlalchemy import create_engine, text
 
 import ducklake_oob_writer as dl
 from column_collection import BacklogDriver, Col, ColumnCollection
@@ -72,18 +73,22 @@ rep = dl.HistoryReplica(w, "item", "id")
 src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
 with src_eng.connect() as conn:
     wm = cc.sync(conn, "1970-01-01 00:00:00", driver, rep)
-print(f"replayed backlog -> watermark = {wm}")
+logger.info("replayed backlog -> watermark = {wm}", wm=wm)
 src_eng.dispose()
 eng.dispose()
 
 # --- the full history, intermediate versions included ---
-with dl.attach_lake(f"sqlite:{BASE}/lake.sqlite", f"{BASE}/data") as c:
+with dl.lake_reader(f"sqlite:{BASE}/lake.sqlite", f"{BASE}/data") as conn:
     def state(at=None):
-        clause = f" AT (TIMESTAMP => TIMESTAMP '{at}')" if at else ""
-        return dict(c.execute(f"SELECT id, name FROM lake.item{clause} ORDER BY id").fetchall())
-    print("current      :", state())
-    print("AT T1        :", state(T1))
-    print("AT T2        :", state(T2))
-    print("AT T3 (b3)   :", state(T3), " <- b2 at T2 retained, not skipped")
-    print("AT T4        :", state(T4))
+        if at is None:
+            stmt = text("SELECT id, name FROM lake.item ORDER BY id")
+        else:
+            stmt = text("SELECT id, name FROM lake.item AT (TIMESTAMP => :ts) ORDER BY id"
+                        ).bindparams(ts=at)
+        return dict(conn.execute(stmt).fetchall())
+    logger.info("current      : {state}", state=state())
+    logger.info("AT T1        : {state}", state=state(T1))
+    logger.info("AT T2        : {state}", state=state(T2))
+    logger.info("AT T3 (b3)   : {state}  <- b2 at T2 retained, not skipped", state=state(T3))
+    logger.info("AT T4        : {state}", state=state(T4))
 src.close()

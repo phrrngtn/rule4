@@ -19,7 +19,8 @@ import os
 import shutil
 
 import pyodbc
-from sqlalchemy import create_engine
+from loguru import logger
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
 import ducklake_oob_writer as dl
@@ -43,7 +44,8 @@ def main():
     cur.execute("IF OBJECT_ID('dbo.cust') IS NOT NULL DROP TABLE dbo.cust")
     cur.execute("CREATE TABLE dbo.cust (id INT PRIMARY KEY, name NVARCHAR(50), region NVARCHAR(50))")
     cur.execute("ALTER TABLE dbo.cust ENABLE CHANGE_TRACKING")
-    cur.execute("INSERT INTO dbo.cust VALUES (1,'a','X'),(2,'b','X'),(3,'c','Y')")
+    cur.executemany("INSERT INTO dbo.cust (id, name, region) VALUES (?, ?, ?)",
+                    [(1, "a", "X"), (2, "b", "X"), (3, "c", "Y")])
 
     # --- the column-collection drives the DuckLake DDL and the tail projection ---
     cc = ColumnCollection("dbo", "cust", [Col(n, t, dialect="sqlserver") for n, t in SRC_COLS],
@@ -65,35 +67,37 @@ def main():
     base_rows = cur.execute("SELECT id, name, region FROM dbo.cust").fetchall()
     rep.apply_commit([{"op": "I", "key": r[0], "row": {"id": r[0], "name": r[1], "region": r[2]}}
                       for r in base_rows], snapshot_time=driver.snapshot_time(v0))
-    print(f"initial load: {len(base_rows)} rows at version {v0} -> {driver.snapshot_time(v0)}")
+    logger.info("initial load: {n} rows at version {v} -> {t}",
+                n=len(base_rows), v=v0, t=driver.snapshot_time(v0))
 
-    # --- source changes, each its own transaction => its own CT version ---
-    cur.execute("UPDATE dbo.cust SET name='b2', region='Z' WHERE id=2")
-    cur.execute("DELETE FROM dbo.cust WHERE id=3")
-    cur.execute("INSERT INTO dbo.cust VALUES (4,'d','W')")
+    # --- source changes (bound values), each its own transaction => its own CT version ---
+    cur.execute("UPDATE dbo.cust SET name = ?, region = ? WHERE id = ?", ("b2", "Z", 2))
+    cur.execute("DELETE FROM dbo.cust WHERE id = ?", (3,))
+    cur.execute("INSERT INTO dbo.cust (id, name, region) VALUES (?, ?, ?)", (4, "d", "W"))
 
     # --- one poll -> several version-stamped snapshots, through the seam ---
     sa_eng = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
     with sa_eng.connect() as conn:
         wm = cc.sync(conn, v0, driver, rep)
     sa_eng.dispose()
-    print(f"poll since {v0}: new watermark = {wm}")
+    logger.info("poll since {v}: new watermark = {wm}", v=v0, wm=wm)
     eng.dispose()
 
     # --- verify: current state mirrors the source, and each version is a snapshot ---
     sql_state = {r[0]: (r[1], r[2]) for r in cur.execute("SELECT id, name, region FROM dbo.cust")}
-    with dl.attach_lake(f"sqlite:{base}/cat.sqlite", f"{base}/data") as c:
+    with dl.lake_reader(f"sqlite:{base}/cat.sqlite", f"{base}/data") as conn:
         lake_state = {r[0]: (r[1], r[2]) for r in
-                      c.execute("SELECT id, name, region FROM lake.cust").fetchall()}
-        snaps = c.execute("SELECT snapshot_id, snapshot_time FROM lake.snapshots() ORDER BY snapshot_id").fetchall()
-        t0 = driver.snapshot_time(v0)
-        asof0 = {r[0]: r[1] for r in c.execute(
-            f"SELECT id, name FROM lake.cust AT (TIMESTAMP => TIMESTAMP '{t0}') ORDER BY id").fetchall()}
-    print(f"\nSQL Server now : {sql_state}")
-    print(f"DuckLake now   : {lake_state}")
-    print(f"mirrors source : {sql_state == lake_state}")
-    print(f"snapshots      : {len(snaps)} (1 initial + 1 per change-version)")
-    print(f"AT initial ver : {asof0}  (== initial load)")
+                      conn.execute(text("SELECT id, name, region FROM lake.cust")).fetchall()}
+        snaps = conn.execute(text(
+            "SELECT snapshot_id, snapshot_time FROM lake.snapshots() ORDER BY snapshot_id")).fetchall()
+        asof0 = {r[0]: r[1] for r in conn.execute(
+            text("SELECT id, name FROM lake.cust AT (TIMESTAMP => :ts) ORDER BY id")
+            .bindparams(ts=driver.snapshot_time(v0))).fetchall()}
+    logger.info("SQL Server now : {state}", state=sql_state)
+    logger.info("DuckLake now   : {state}", state=lake_state)
+    logger.info("mirrors source : {ok}", ok=sql_state == lake_state)
+    logger.info("snapshots      : {n} (1 initial + 1 per change-version)", n=len(snaps))
+    logger.info("AT initial ver : {state}  (== initial load)", state=asof0)
 
     cur.execute("IF OBJECT_ID('dbo.cust') IS NOT NULL DROP TABLE dbo.cust")   # cleanup
     src.close()

@@ -22,6 +22,7 @@ import os
 import shutil
 
 import pyodbc
+from loguru import logger
 
 from column_collection import ColumnCollection
 from migration import schema_diff
@@ -50,8 +51,8 @@ def cols_of(reg, table, when):
 
 
 def show(title, ddl):
-    print(f"\n{title}")
-    print("\n".join("  " + s for s in ddl) or "  (no change)")
+    body = "\n".join("  " + s for s in ddl) or "  (no change)"
+    logger.info("{title}\n{body}", title=title, body=body)
 
 
 def main():
@@ -73,8 +74,8 @@ def main():
 
     # the two revisions, straight from the captures
     cc1, cc2 = cols_of(reg, "cust", T1), cols_of(reg, "cust", T2)
-    print("r1 (captured):", [(c.name, c.source_type) for c in cc1.columns])
-    print("r2 (captured):", [(c.name, c.source_type) for c in cc2.columns])
+    logger.info("r1 (captured): {cols}", cols=[(c.name, c.source_type) for c in cc1.columns])
+    logger.info("r2 (captured): {cols}", cols=[(c.name, c.source_type) for c in cc2.columns])
     show("r1 -> r2 (forward, derived from captures):", cc1.migration_to(cc2))
     show("r2 -> r1 (rollback):", cc2.migration_to(cc1))
 
@@ -89,8 +90,9 @@ def main():
 
     cc_copy = cols_of(reg, "cust_copy", T3)
     residual = schema_diff(cc_copy, cc2)   # copy-after-migration vs the real r2
-    print(f"\napplied {len(generated)} generated statements to dbo.cust_copy")
-    print("copy-after-migration vs r2:", residual or "IDENTICAL — generated DDL reproduced r2")
+    logger.info("applied {n} generated statements to dbo.cust_copy", n=len(generated))
+    logger.info("copy-after-migration vs r2: {residual}",
+                residual=residual or "IDENTICAL — generated DDL reproduced r2")
 
     cur.execute("IF OBJECT_ID('dbo.cust') IS NOT NULL DROP TABLE dbo.cust")
     cur.execute("IF OBJECT_ID('dbo.cust_copy') IS NOT NULL DROP TABLE dbo.cust_copy")

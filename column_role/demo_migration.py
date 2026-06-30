@@ -7,6 +7,8 @@ forward (n-1 -> n), rollback (n -> n-3), and rendered for several target dialect
 
 Run from column_role/:  uv run python demo_migration.py
 """
+from loguru import logger
+
 from column_collection import Col, ColumnCollection
 
 
@@ -24,8 +26,8 @@ r3 = rev(("id", "int"), ("name", "nvarchar(100)"), ("signup_date", "datetime2"),
 
 
 def show(title, ddl):
-    print(f"\n{title}")
-    print("\n".join("  " + s for s in ddl) or "  (no change)")
+    body = "\n".join("  " + s for s in ddl) or "  (no change)"
+    logger.info("{title}\n{body}", title=title, body=body)
 
 
 # forward, step by step

@@ -12,7 +12,8 @@ import os
 import shutil
 import sqlite3
 
-from sqlalchemy import create_engine
+from loguru import logger
+from sqlalchemy import create_engine, text
 
 import ducklake_oob_writer as dl
 from column_collection import Col, ColumnCollection, UserColumnDriver
@@ -47,7 +48,7 @@ rep = dl.HistoryReplica(w, "item", "id")
 # poll 1 — initial load (everything since the epoch)
 with src_eng.connect() as conn:
     wm = cc.sync(conn, "2000-01-01 00:00:00", driver, rep)
-print(f"poll 1 -> watermark = {wm}")
+logger.info("poll 1 -> watermark = {wm}", wm=wm)
 
 # source evolves at its own pace: update id=2 (T2), insert id=4 (T3)
 src.execute("UPDATE item SET name='b2', updated_at=? WHERE id=2", [T2])
@@ -57,16 +58,20 @@ src.commit()
 # poll 2 — incremental (only rows with updated_at > watermark)
 with src_eng.connect() as conn:
     wm = cc.sync(conn, wm, driver, rep)
-print(f"poll 2 -> watermark = {wm}")
+logger.info("poll 2 -> watermark = {wm}", wm=wm)
 eng.dispose()
 
 # --- the payload time-series in DuckLake ---
-with dl.attach_lake(f"sqlite:{BASE}/lake.sqlite", f"{BASE}/data") as c:
+with dl.lake_reader(f"sqlite:{BASE}/lake.sqlite", f"{BASE}/data") as conn:
     def state(at=None):
-        clause = f" AT (TIMESTAMP => TIMESTAMP '{at}')" if at else ""
-        return dict(c.execute(f"SELECT id, name FROM lake.item{clause} ORDER BY id").fetchall())
-    print("current      :", state())
-    print("AT 10:30 (T1):", state("2026-06-30 10:30:00"))
-    print("AT 11:30 (T2):", state("2026-06-30 11:30:00"))
-    print("AT 12:30 (T3):", state("2026-06-30 12:30:00"))
+        if at is None:
+            stmt = text("SELECT id, name FROM lake.item ORDER BY id")
+        else:
+            stmt = text("SELECT id, name FROM lake.item AT (TIMESTAMP => :ts) ORDER BY id"
+                        ).bindparams(ts=at)
+        return dict(conn.execute(stmt).fetchall())
+    logger.info("current      : {state}", state=state())
+    logger.info("AT 10:30 (T1): {state}", state=state("2026-06-30 10:30:00"))
+    logger.info("AT 11:30 (T2): {state}", state=state("2026-06-30 11:30:00"))
+    logger.info("AT 12:30 (T3): {state}", state=state("2026-06-30 12:30:00"))
 src.close()
