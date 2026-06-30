@@ -16,13 +16,26 @@ of truth — the ``type_reference`` reference data (``TYPES``) — resolved by `
 source_type)``. No type dict here. The funky-value transforms in (3) are ``@compiles``
 constructs rendering per the source dialect (the *source* is a real portability surface).
 """
+import datetime as _dt
+from itertools import groupby
+
 import sqlalchemy
-from sqlalchemy import (Column as SACol, MetaData, String, Table, cast, column as sqlcolumn,
-                        select, table as sqltable)
+from sqlalchemy import (Column as SACol, MetaData, String, Table, case, cast,
+                        column as sqlcolumn, literal, select, table as sqltable)
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import ColumnElement
 
 from type_reference import TYPES
+
+
+def _as_dt(v):
+    """Coerce a transaction-time value to a datetime for DuckLake snapshot_time."""
+    if isinstance(v, _dt.datetime) or v is None:
+        return v
+    try:
+        return _dt.datetime.fromisoformat(str(v))
+    except ValueError:
+        return v
 
 
 class Col:
@@ -98,6 +111,31 @@ class ColumnCollection:
         return writer.inline_rows(self.name, [{c.name: r.get(c.name) for c in self.columns}
                                               for r in rows if r.get("__op", "I") != "D"],
                                   schema_name=schema_name, snapshot_time=snapshot_time)
+
+    # --- the acquisition seam: poll the source for changes since a watermark ---
+    def changed_since(self, conn, watermark, driver, *, source_schema=None):
+        """Poll the source for changes since ``watermark`` using ``driver`` — the per-model
+        *acquisition* strategy (CT / user-column / backlog). Returns ``(changes,
+        next_watermark)``; each change is a dict with ``__op`` / ``__key`` / ``__tt`` (its
+        own transaction-time) plus the type-aware column values. Only ``driver`` is
+        model-specific; the apply side below is generic."""
+        rows = [dict(r._mapping) for r in conn.execute(
+            driver.query(self, watermark, source_schema=source_schema))]
+        return rows, driver.next_watermark(rows, watermark)
+
+    def sync(self, conn, watermark, driver, replica, *, source_schema=None):
+        """One poll → apply. Poll via ``driver``, then **staple rows by transaction-time**:
+        group the changes by ``__tt`` and apply each group as one snapshot (so each distinct
+        source transaction-time becomes one DuckLake snapshot). ``replica`` is a
+        ``HistoryReplica`` (or ``Replica``). Returns the new watermark. Assumes the source's
+        transaction-time is monotonic."""
+        rows, nw = self.changed_since(conn, watermark, driver, source_schema=source_schema)
+        rows.sort(key=lambda r: r["__tt"])
+        for tt, grp in groupby(rows, key=lambda r: r["__tt"]):
+            ops = [{"op": r.get("__op", "U"), "key": r["__key"],
+                    "row": {c.name: r[c.name] for c in self.columns}} for r in grp]
+            replica.apply_commit(ops, snapshot_time=_as_dt(tt))
+        return nw
 
 
 # --- dialect-specific value transforms for funky source types (source is polymorphic ->
@@ -175,3 +213,34 @@ def _extract(col, transform):
         return cast(col, String).label(col.name)
     ctor = _TRANSFORMS.get(transform)
     return ctor(col).label(col.name) if ctor else col
+
+
+# --- acquisition drivers (the model-specific seam fed to ColumnCollection.changed_since) ---
+class UserColumnDriver:
+    """Acquisition by a **user-modeled transaction-time column** — the Socrata ``:updated_at``
+    pattern. Poll ``WHERE tt_col > watermark ORDER BY tt_col``; each row is an upsert stamped
+    with its own ``tt_col`` as transaction-time; the watermark advances to ``max(tt_col)``.
+    Upsert-only unless ``deleted_col`` (a boolean tombstone) marks deletes. The query is SA
+    Core over the source dialect, reusing the same type-aware projection as the rest of the
+    ColumnCollection (so funky source values are CAST on the way out)."""
+
+    def __init__(self, tt_column, *, key, deleted_col=None):
+        self.tt_column, self.key, self.deleted_col = tt_column, key, deleted_col
+
+    def query(self, cc, watermark, *, source_schema=None):
+        extra = [sqlcolumn(self.tt_column)]
+        if self.deleted_col:
+            extra.append(sqlcolumn(self.deleted_col))
+        src = sqltable(cc.name, *[sqlcolumn(c.name) for c in cc.columns], *extra,
+                       schema=source_schema)
+        op = (case((src.c[self.deleted_col].is_(True), "D"), else_="U")
+              if self.deleted_col else literal("U"))
+        return (select(*[_extract(src.c[c.name], c.transform) for c in cc.columns],
+                       op.label("__op"),
+                       src.c[self.key].label("__key"),
+                       src.c[self.tt_column].label("__tt"))
+                .where(src.c[self.tt_column] > watermark)
+                .order_by(src.c[self.tt_column]))
+
+    def next_watermark(self, rows, prev):
+        return max((r["__tt"] for r in rows), default=prev)
