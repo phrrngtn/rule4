@@ -300,6 +300,53 @@ class ChangeTrackingDriver:
         return self.epoch + _dt.timedelta(**{self.unit: int(tt)})
 
 
+class CDCDriver:
+    """Acquisition via SQL Server **Change Data Capture** — the full-fidelity SQL Server
+    flavor, and the natural complement to CT. Where CT stores no values (we joined the live
+    base table for the *current* after-image), CDC's change tables hold the column **values**
+    of every change, so ``fn_cdc_get_all_changes(..., 'all')`` replays *all* intermediate
+    versions (op 2=insert, 4=after-update, 1=delete; the 3=before-update image is dropped —
+    we keep after-images). This is the SQL Server analogue of the trigger backlog.
+
+    Two things differ from :class:`ChangeTrackingDriver`, both already inside the seam:
+
+    * **A real commit time.** CDC's ``lsn_time_mapping`` gives each LSN its transaction time,
+      so ``__tt`` is ``fn_cdc_map_lsn_to_time(__$start_lsn)`` — a true timestamp; no synthetic
+      ``snapshot_time`` hook needed (the default datetime coercion applies). The LSN itself is
+      carried as ``__lsn`` only to advance the watermark (``max(__lsn)``).
+    * **No base-table join, and a frozen column set.** Values come straight from the change
+      table — but that table is frozen at ``sp_cdc_enable_table`` time, so a new source column
+      is *silently not captured*. Schema evolution requires a capture-instance rollover (up to
+      two instances per table); the column_role drift signal + ``cdc.ddl_history`` are the
+      trigger for it. CT, by contrast, rides new columns automatically.
+
+    Watermark is the LSN (``binary(10)`` -> ``bytes``); the next poll reads from
+    ``increment_lsn(watermark)`` to ``get_max_lsn()``. ``capture_instance`` defaults to
+    ``{schema}_{table}`` (the CDC default)."""
+
+    def __init__(self, key, *, capture_instance=None, schema="dbo"):
+        self.key, self.capture_instance, self.schema = key, capture_instance, schema
+
+    def query(self, cc, watermark, *, source_schema=None):
+        inst = self.capture_instance or f"{self.schema}_{cc.name}"
+        proj = tailing_projection([(c.name, c.source_type) for c in cc.columns],
+                                  "sqlserver", table_alias="ct")
+        op = "CASE ct.[__$operation] WHEN 1 THEN 'D' WHEN 2 THEN 'I' WHEN 4 THEN 'U' END"
+        return text(
+            f"SELECT {op} AS __op, ct.[{self.key}] AS __key, "
+            f"sys.fn_cdc_map_lsn_to_time(ct.[__$start_lsn]) AS __tt, "
+            f"ct.[__$start_lsn] AS __lsn, {proj} "
+            f"FROM cdc.fn_cdc_get_all_changes_{inst}("
+            f"  CASE WHEN :wm IS NULL THEN sys.fn_cdc_get_min_lsn(:inst) "
+            f"       ELSE sys.fn_cdc_increment_lsn(:wm) END, "
+            f"  sys.fn_cdc_get_max_lsn(), N'all') AS ct "
+            f"WHERE ct.[__$operation] IN (1, 2, 4) "
+            f"ORDER BY ct.[__$start_lsn], ct.[__$seqval]").bindparams(wm=watermark, inst=inst)
+
+    def next_watermark(self, rows, prev):
+        return max((r["__lsn"] for r in rows), default=prev)
+
+
 class BacklogDriver:
     """Acquisition from a **trigger- (or application-) maintained backlog** — an append-only
     log of *after-images*, the Snodgrass backlog relation. Unlike :class:`UserColumnDriver`
