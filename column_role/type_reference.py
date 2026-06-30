@@ -22,16 +22,11 @@ from sqlalchemy import (BigInteger, Boolean, Column, MetaData, String, Table, an
                         select)
 
 import ducklake_oob_writer as dl
-from lakeio import write_parquet
 from registry import _CR
 
 _DDL = [("dialect", "varchar"), ("type_name", "varchar"), ("odbc_code", "int64"),
         ("odbc_name", "varchar"), ("sa_type", "varchar"), ("ducklake_type", "varchar"),
         ("transform", "varchar"), ("is_lob", "boolean")]
-# colspecs (SA types) for the staging table that write_parquet COPYs
-_SEED_COLS = [("dialect", String), ("type_name", String), ("odbc_code", BigInteger),
-              ("odbc_name", String), ("sa_type", String), ("ducklake_type", String),
-              ("transform", String), ("is_lob", Boolean)]
 # lake.type_reference as a SA Core table — for reads / the resolution JOIN via lake_reader
 _TR = Table("type_reference", MetaData(),
             Column("dialect", String), Column("type_name", String), Column("odbc_code", BigInteger),
@@ -137,7 +132,7 @@ def seed_into(writer, data_path, sample_time, *, schema_name="main"):
     tdir = os.path.join(data_path, schema_name, "type_reference")
     os.makedirs(tdir, exist_ok=True)
     pq = os.path.join(tdir, "seed.parquet")
-    write_parquet(_SEED_COLS, SEED, pq, name="r")
+    dl.write_rows_parquet(_DDL, SEED, pq)
     writer.register_parquet("type_reference", pq, rel_path="seed.parquet", snapshot_time=sample_time)
 
 

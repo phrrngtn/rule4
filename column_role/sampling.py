@@ -14,27 +14,23 @@ import os
 from sqlalchemy import Boolean, Column, MetaData, String, Table, and_, select
 
 import ducklake_oob_writer as dl
-from lakeio import write_parquet
 from schema_evolution import desired_columns
 
 _DDL = [("dataserver", "varchar"), ("database", "varchar"), ("source_schema", "varchar"),
         ("source_object", "varchar"), ("key_column", "varchar"), ("mode", "varchar"),
         ("target_table", "varchar"), ("enabled", "boolean")]
-_SAMPLING_COLS = [("dataserver", String), ("database", String), ("source_schema", String),
-                  ("source_object", String), ("key_column", String), ("mode", String),
-                  ("target_table", String), ("enabled", Boolean)]
 
 # Connections — ODBC *components* (never a password; integrated security) in the catalog.
 _CONN_DDL = [("dataserver", "varchar"), ("database", "varchar"), ("dialect", "varchar"),
              ("odbc_driver", "varchar"), ("odbc_server", "varchar"),
              ("odbc_database", "varchar"), ("trusted", "boolean"), ("extra", "varchar")]
-_CONN_COLS = [("dataserver", String), ("database", String), ("dialect", String),
-              ("odbc_driver", String), ("odbc_server", String), ("odbc_database", String),
-              ("trusted", Boolean), ("extra", String)]
 
-# lake.* SA Core tables for reads through the duckdb-engine lake_reader
-_SAMPLING = Table("sampling", MetaData(), *[Column(n, t) for n, t in _SAMPLING_COLS], schema="lake")
-_CONN = Table("connections", MetaData(), *[Column(n, t) for n, t in _CONN_COLS], schema="lake")
+# lake.* SA Core tables for reads through the duckdb-engine lake_reader (types are nominal —
+# string/boolean — only the column names matter for the SELECTs)
+_SAMPLING = Table("sampling", MetaData(), *[Column(n, String) for n, _ in _DDL[:-1]],
+                  Column("enabled", Boolean), schema="lake")
+_CONN = Table("connections", MetaData(), *[Column(n, String) for n, _ in _CONN_DDL[:-2]],
+              Column("trusted", Boolean), Column("extra", String), schema="lake")
 
 
 class SamplingPlan:
@@ -62,7 +58,7 @@ class SamplingPlan:
                 for s in specs]
         tag = f"sampling__{sample_time:%Y%m%dT%H%M%S}"
         pq = os.path.join(self.data_path, "main", "sampling", f"{tag}.parquet")
-        write_parquet(_SAMPLING_COLS, rows, pq, name="s")
+        dl.write_rows_parquet(_DDL, rows, pq)
         self.writer.register_parquet("sampling", pq, rel_path=f"{tag}.parquet",
                                      snapshot_time=sample_time)
 
@@ -82,7 +78,7 @@ class SamplingPlan:
                  c.get("trusted", True), c.get("extra", "")) for c in conns]
         tag = f"connections__{sample_time:%Y%m%dT%H%M%S}"
         pq = os.path.join(self.data_path, "main", "connections", f"{tag}.parquet")
-        write_parquet(_CONN_COLS, rows, pq, name="c")
+        dl.write_rows_parquet(_CONN_DDL, rows, pq)
         self.writer.register_parquet("connections", pq, rel_path=f"{tag}.parquet",
                                      snapshot_time=sample_time)
 

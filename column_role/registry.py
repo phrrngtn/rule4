@@ -21,7 +21,6 @@ from sqlalchemy import (BigInteger, Column, DateTime, MetaData, String, Table, a
                         select, text)
 
 import ducklake_oob_writer as dl
-from lakeio import write_parquet
 
 _SQLDIR = os.path.join(os.path.dirname(__file__), "sql")
 
@@ -34,11 +33,6 @@ _CR = Table("column_role", _LAKE,
             Column("member_name", String), Column("ordinal", BigInteger),
             Column("data_type", String), Column("referenced_object", String),
             Column("referenced_member", String), schema="lake")
-# colspecs (SA types) for the local staging table that write_parquet COPYs to Parquet
-_CAP_COLS = [("dataserver", String), ("database", String), ("sample_time", DateTime),
-             ("schema_name", String), ("object_name", String), ("grouping_kind", String),
-             ("member_name", String), ("ordinal", BigInteger), ("data_type", String),
-             ("referenced_object", String), ("referenced_member", String)]
 
 # the column_role columns we keep in the registry (a useful subset of the 28), in order
 _SUBSET = ["schema_name", "object_name", "grouping_kind", "member_name",
@@ -92,7 +86,7 @@ class Registry:
             return
         tag = f"{rows[0][0]}__{rows[0][1]}__{sample_time:%Y%m%dT%H%M%S}".replace("/", "_")
         pq = os.path.join(self.data_path, "main", "column_role", f"{tag}.parquet")
-        write_parquet(_CAP_COLS, rows, pq, name="cap")
+        dl.write_rows_parquet(_DDL, rows, pq)
         self._w.register_parquet("column_role", pq, rel_path=f"{tag}.parquet", snapshot_time=sample_time)
 
     def dispose(self):
