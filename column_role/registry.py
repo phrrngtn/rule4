@@ -17,8 +17,8 @@ import datetime as _dt
 import os
 import re
 
-from sqlalchemy import (BigInteger, Column, DateTime, MetaData, String, Table, and_, case,
-                        func, select, text)
+from sqlalchemy import (BigInteger, Column, DateTime, Float, MetaData, String, Table, and_,
+                        case, func, select, text)
 
 import ducklake_oob_writer as dl
 
@@ -85,6 +85,41 @@ def capture_identity(cursor, dialect: str, dataserver: str, database: str, sampl
     return [(dataserver, database, sample_time) + tuple(r) for r in rows]
 
 
+# --- per-sample environment probe: remote clock-skew estimate + database identity ---
+# One row per *sample* (not per object). Carries (a) skew — measure our trusted local UTC,
+# ask the remote its UTC, difference is the gross skew (RTT ~ms is noise vs minute-scale
+# skew); a *jump* in the skew series between samples is the "remote clock stepped" signal.
+# Also the server-local now (to derive the server's TZ, since create/modify_date are
+# server-local) and (b) the database create_date — the DB identity that survives dbid reuse,
+# so a changed db_create_date ⇒ the database was dropped and recreated.
+_ENV_SQL = {
+    "sqlserver": "SELECT SYSUTCDATETIME() AS remote_utc, SYSDATETIME() AS remote_local, "
+                 "(SELECT create_date FROM sys.databases WHERE database_id = DB_ID()) "
+                 "AS db_create_date",
+    "postgresql": "SELECT (now() AT TIME ZONE 'UTC') AS remote_utc, "
+                  "localtimestamp AS remote_local, "
+                  "(pg_postmaster_start_time() AT TIME ZONE 'UTC') AS db_create_date",
+}
+_CLK_DDL = [("dataserver", "varchar"), ("database", "varchar"), ("sample_time", "timestamp"),
+            ("local_utc", "timestamp"), ("remote_utc", "timestamp"),
+            ("remote_local", "timestamp"), ("db_create_date", "timestamp"),
+            ("skew_seconds", "float64")]
+_SC = Table("sample_clock", MetaData(),
+            Column("dataserver", String), Column("database", String),
+            Column("sample_time", DateTime), Column("local_utc", DateTime),
+            Column("remote_utc", DateTime), Column("remote_local", DateTime),
+            Column("db_create_date", DateTime), Column("skew_seconds", Float), schema="lake")
+
+
+def measure_env(cursor, dialect: str, dataserver: str, database: str, sample_time, local_utc):
+    """The per-sample environment probe. ``local_utc`` = our trusted UTC captured around the
+    call. Returns one `_CLK_DDL`-shaped tuple; ``skew_seconds`` = remote_utc − local_utc."""
+    remote_utc, remote_local, db_create = cursor.execute(_ENV_SQL[dialect]).fetchone()
+    skew = (remote_utc - local_utc).total_seconds() if remote_utc and local_utc else None
+    return (dataserver, database, sample_time, local_utc, remote_utc, remote_local,
+            db_create, skew)
+
+
 def projection_body(dialect: str) -> str:
     """The SELECT body of the dialect's column_role view (strip the CREATE/comments/GO)."""
     raw = re.sub(r"--.*", "", open(os.path.join(_SQLDIR, f"{dialect}.sql")).read())
@@ -114,9 +149,11 @@ class Registry:
         w.set_partitioning("column_role", ["dataserver", "database"])
         w.create_table("main", "schema_identity", _ID_DDL)
         w.set_partitioning("schema_identity", ["dataserver", "database"])
+        w.create_table("main", "sample_clock", _CLK_DDL)
+        w.set_partitioning("sample_clock", ["dataserver", "database"])
         self._w = w
-        os.makedirs(os.path.join(data_path, "main", "column_role"), exist_ok=True)
-        os.makedirs(os.path.join(data_path, "main", "schema_identity"), exist_ok=True)
+        for t in ("column_role", "schema_identity", "sample_clock"):
+            os.makedirs(os.path.join(data_path, "main", t), exist_ok=True)
 
     def record(self, rows: list[tuple], sample_time):
         """Write one capture (constant dataserver/database → partition values via min==max)."""
@@ -160,6 +197,35 @@ class Registry:
                        ranked.c.prev_oid, ranked.c.object_id, ranked.c.event)
                 .where(ranked.c.event != "unchanged")
                 .order_by(ranked.c.sample_time, ranked.c.object_name))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(stmt).fetchall()
+
+    def record_clock(self, env_row: tuple, sample_time):
+        """Record one per-sample environment probe (skew + DB identity) — see measure_env."""
+        tag = f"{env_row[0]}__{env_row[1]}__{sample_time:%Y%m%dT%H%M%S}clk".replace("/", "_")
+        pq = os.path.join(self.data_path, "main", "sample_clock", f"{tag}.parquet")
+        dl.write_rows_parquet(_CLK_DDL, [env_row], pq)
+        self._w.register_parquet("sample_clock", pq, rel_path=f"{tag}.parquet",
+                                 snapshot_time=sample_time)
+
+    def clock_events(self, dataserver: str, database: str, *, step_threshold=120.0):
+        """Environment anomalies over the sample_clock series (order by TT): a database
+        drop-recreate (db_create_date changed) and a remote clock step (skew jumped by more
+        than ``step_threshold`` seconds between samples). Returns (sample_time, skew_seconds,
+        db_recreated, clock_stepped)."""
+        sc = _SC
+        order = sc.c.sample_time
+        prev_dbc = func.lag(sc.c.db_create_date).over(order_by=order)
+        prev_skew = func.lag(sc.c.skew_seconds).over(order_by=order)
+        base = (select(sc.c.sample_time, sc.c.skew_seconds, sc.c.db_create_date,
+                       prev_dbc.label("prev_dbc"), prev_skew.label("prev_skew"))
+                .where(and_(sc.c.dataserver == dataserver, sc.c.database == database)).subquery())
+        db_recreated = and_(base.c.prev_dbc.isnot(None), base.c.db_create_date != base.c.prev_dbc)
+        clock_stepped = and_(base.c.prev_skew.isnot(None),
+                             func.abs(base.c.skew_seconds - base.c.prev_skew) > step_threshold)
+        stmt = (select(base.c.sample_time, base.c.skew_seconds,
+                       db_recreated.label("db_recreated"), clock_stepped.label("clock_stepped"))
+                .order_by(base.c.sample_time))
         with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
             return conn.execute(stmt).fetchall()
 
