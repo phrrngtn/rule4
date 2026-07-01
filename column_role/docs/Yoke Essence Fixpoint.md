@@ -13,8 +13,11 @@ Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]]
 > reading of recursion, the Lockean nominal/real-essence distinction as applied here, the `*yug-*`
 > etymology — is Claude's contribution, worked out in conversation. The point of writing it down is
 > to get the words out: to SELECT the intuition into the register in which it can be handed to
-> others. The division above is itself the §7 move in miniature — a yoke (the built thing) and its
+> others. The division above is itself, in miniature, the move of §7 below — a yoke (the built thing) and its
 > projection onto authoritative relations (the formal names).
+
+> *Bare section references (§4, §5, …) point to [[Catalog As Data]]; this note's own sections are
+> marked "above" or "below."*
 
 ---
 
@@ -76,7 +79,7 @@ relational data"). So the word for the unresolved referent and the operator that
 etymological cousins under *\*yug-*, "to join." In a project about Rule 4 — the catalog being Rule4
 about itself — a placeholder-word and a resolution-operator that turn out to share a root is the
 kind of self-referential rhyme the whole construction already delights in. (This one is a real
-shared root, not a coincidence; contrast §8's honest non-coincidence.)
+shared root, not a coincidence; contrast the honest non-coincidence in §8 below.)
 
 ## 4. Fixpoint — the term, precisely
 
@@ -136,7 +139,10 @@ real, load-bearing, pointable-at, but with no representation fit for handing to 
 the register others accept as explanation. Making it communicable is not *translation* (which risks
 loss across a foreign medium) but **projection**: closing over authoritative relations that were
 already there and returning a view. Here the relations are `sys.locke` (nominal essence) and
-`sys.fixpoint`; the projection asserts nothing new, so the explanation is correct-by-construction
+`sys.fixpoint` — whimsical inventions, of course; there is no such catalog view. The conceit is
+that these formal ideas were already authoritative, already *there* in the catalog of available
+thought, waiting to be SELECTed, so explaining the project is itself a projection over relations
+that pre-exist it. The projection asserts nothing new, so the explanation is correct-by-construction
 for the same reason the replica is — it is a view over facts already guaranteed, not a new argument
 that must be defended.
 
@@ -145,7 +151,8 @@ already holds. The failure mode of an under-explained idea is therefore the proj
 mode: not *wrong*, only **incomplete** — un-projected, not mis-projected. The single dial is
 coverage: how much of what is already, authoritatively there you bother to SELECT.
 
-This is why "phase 0" is a starting line, not a finish. The move has now been demonstrated on the
+This is why "phase 0" — the groundwork laid so far: the mechanism built, and the move proven on the
+one referent that resisted it longest — is a starting line, not a finish. The move has now been demonstrated on the
 hardest possible referent — an inchoate, long-held, felt-but-unsayable intuition — and it still
 resolved cleanly into a communicable essence. Every data-centric problem downstream is a yoke
 sitting still on a dataserver, strictly easier than that. The operator is total on the domain of
@@ -153,8 +160,8 @@ interest; what remains is coverage.
 
 ## 8. Honest non-coincidence
 
-The `*yug-*` link in §3 is a real shared root. The following is **not** a shared root, flagged
-precisely so it is not mistaken for one: the iterate-to fixed point (§5) is reached by taking
+The `*yug-*` link in §3 above is a real shared root. The following is **not** a shared root, flagged
+precisely so it is not mistaken for one: the iterate-to fixed point (§5 above) is reached by taking
 **joins** — least upper bounds up a lattice. That "join" is lattice-theoretic, not SQL's relational
 JOIN. "The resolution operator is JOIN" and "the fixpoints are reached by joins" are both true, in
 two unrelated vocabularies. A genuine pun, a collision — not family.
