@@ -1,4 +1,13 @@
 {
+  "catalog_key": [
+    {"dialect": "sqlserver", "table_name": "sys.objects", "ord": 0, "col": "object_id"},
+    {"dialect": "sqlserver", "table_name": "sys.schemas", "ord": 0, "col": "schema_id"},
+    {"dialect": "sqlserver", "table_name": "sys.columns", "ord": 0, "col": "object_id"},
+    {"dialect": "sqlserver", "table_name": "sys.columns", "ord": 1, "col": "column_id"},
+    {"dialect": "sqlserver", "table_name": "sys.types", "ord": 0, "col": "user_type_id"},
+    {"dialect": "sqlserver", "table_name": "sys.indexes", "ord": 0, "col": "object_id"},
+    {"dialect": "sqlserver", "table_name": "sys.indexes", "ord": 1, "col": "index_id"}
+  ],
   "catalog_table": [
     {"dialect": "sqlserver", "essence": "column", "alias": "o", "expr": "sys.objects", "is_root": 1},
     {"dialect": "sqlserver", "essence": "column", "alias": "s", "expr": "sys.schemas", "is_root": 0},
@@ -9,18 +18,47 @@
     {"dialect": "sqlserver", "essence": "index", "alias": "o", "expr": "sys.objects", "is_root": 0},
     {"dialect": "sqlserver", "essence": "index", "alias": "s", "expr": "sys.schemas", "is_root": 0},
     {"dialect": "sqlserver", "essence": "index", "alias": "ic", "expr": "sys.index_columns", "is_root": 0},
-    {"dialect": "sqlserver", "essence": "index", "alias": "c", "expr": "sys.columns", "is_root": 0}
+    {"dialect": "sqlserver", "essence": "index", "alias": "c", "expr": "sys.columns", "is_root": 0},
+
+    {"dialect": "sqlserver", "essence": "check", "alias": "cc", "expr": "sys.check_constraints", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "check", "alias": "o", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "check", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+
+    {"dialect": "sqlserver", "essence": "primary_key", "alias": "kc", "expr": "sys.key_constraints", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "primary_key", "alias": "o", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "primary_key", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "primary_key", "alias": "ic", "expr": "sys.index_columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "primary_key", "alias": "c", "expr": "sys.columns", "is_root": 0},
+
+    {"dialect": "sqlserver", "essence": "unique", "alias": "kc", "expr": "sys.key_constraints", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "unique", "alias": "o", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "unique", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "unique", "alias": "ic", "expr": "sys.index_columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "unique", "alias": "c", "expr": "sys.columns", "is_root": 0}
   ],
   "catalog_join": [
-    {"dialect": "sqlserver", "essence": "column", "alias": "s", "to_alias": "o", "child_col": "schema_id", "parent_col": "schema_id"},
-    {"dialect": "sqlserver", "essence": "column", "alias": "c", "to_alias": "o", "child_col": "object_id", "parent_col": "object_id"},
-    {"dialect": "sqlserver", "essence": "column", "alias": "ty", "to_alias": "c", "child_col": "user_type_id", "parent_col": "user_type_id"},
+    {"dialect": "sqlserver", "essence": "column", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "column", "child": "c", "parent": "o", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "column", "child": "c", "parent": "ty", "child_col": null, "parent_col": null},
 
-    {"dialect": "sqlserver", "essence": "index", "alias": "o", "to_alias": "i", "child_col": "object_id", "parent_col": "object_id"},
-    {"dialect": "sqlserver", "essence": "index", "alias": "s", "to_alias": "o", "child_col": "schema_id", "parent_col": "schema_id"},
-    {"dialect": "sqlserver", "essence": "index", "alias": "ic", "to_alias": "i", "child_col": "object_id", "parent_col": "object_id"},
-    {"dialect": "sqlserver", "essence": "index", "alias": "ic", "to_alias": "i", "child_col": "index_id", "parent_col": "index_id"},
-    {"dialect": "sqlserver", "essence": "index", "alias": "c", "to_alias": "ic", "child_col": "object_id", "parent_col": "object_id"},
-    {"dialect": "sqlserver", "essence": "index", "alias": "c", "to_alias": "ic", "child_col": "column_id", "parent_col": "column_id"}
+    {"dialect": "sqlserver", "essence": "index", "child": "i", "parent": "o", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "index", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "index", "child": "ic", "parent": "i", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "index", "child": "ic", "parent": "c", "child_col": null, "parent_col": null},
+
+    {"dialect": "sqlserver", "essence": "check", "child": "cc", "parent": "o", "child_col": "parent_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "check", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+
+    {"dialect": "sqlserver", "essence": "primary_key", "child": "kc", "parent": "o", "child_col": "parent_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "primary_key", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "primary_key", "child": "ic", "parent": "kc", "child_col": "object_id", "parent_col": "parent_object_id"},
+    {"dialect": "sqlserver", "essence": "primary_key", "child": "ic", "parent": "kc", "child_col": "index_id", "parent_col": "unique_index_id"},
+    {"dialect": "sqlserver", "essence": "primary_key", "child": "ic", "parent": "c", "child_col": null, "parent_col": null},
+
+    {"dialect": "sqlserver", "essence": "unique", "child": "kc", "parent": "o", "child_col": "parent_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "unique", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "kc", "child_col": "object_id", "parent_col": "parent_object_id"},
+    {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "kc", "child_col": "index_id", "parent_col": "unique_index_id"},
+    {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "c", "child_col": null, "parent_col": null}
   ]
 }

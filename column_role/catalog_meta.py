@@ -41,10 +41,20 @@ CATALOG_TABLE = Table(
     "catalog_table", _MD,
     Column("dialect", String), Column("essence", String),
     Column("alias", String), Column("expr", String), Column("is_root", Integer))
+# each catalog table's identity key columns (DRY reference data, shared across essences) —
+# the convention that lets join columns be INFERRED rather than recorded.
+CATALOG_KEY = Table(
+    "catalog_key", _MD,
+    Column("dialect", String), Column("table_name", String),
+    Column("ord", Integer), Column("col", String))
+# join edges, oriented child (references) -> parent (referenced). The ON columns are INFERRED
+# from the parent's identity key (same-named, the catalog convention); child_col/parent_col are
+# NULL for those. They're filled only where the catalog breaks the convention (differently-named
+# FK columns like kc.parent_object_id -> o.object_id) — exceptions as data.
 CATALOG_JOIN = Table(
     "catalog_join", _MD,
     Column("dialect", String), Column("essence", String),
-    Column("alias", String), Column("to_alias", String),
+    Column("child", String), Column("parent", String),
     Column("child_col", String), Column("parent_col", String))
 
 _SEED_GLOB = os.path.join(os.path.dirname(__file__), "catalog_seed*.json")
@@ -60,7 +70,8 @@ def load(conn, paths=None):
     is every ``catalog_seed*.json`` beside this module (a base file plus per-dialect additions),
     so **adding a dialect is a new data file, no code change**. Bulk SA Core inserts."""
     tables = ((CATALOG_SOURCE, "catalog_source"), (CATALOG_ATTR, "catalog_attr"),
-              (CATALOG_TABLE, "catalog_table"), (CATALOG_JOIN, "catalog_join"))
+              (CATALOG_TABLE, "catalog_table"), (CATALOG_JOIN, "catalog_join"),
+              (CATALOG_KEY, "catalog_key"))
     for path in sorted(paths or glob.glob(_SEED_GLOB)):
         with open(path) as fh:
             data = json.load(fh)
@@ -70,50 +81,62 @@ def load(conn, paths=None):
 
 
 def from_clause(conn, dialect, essence):
-    """Build the FROM/JOIN for an essence from **join metadata in the registry** — the catalog
-    tables (aliases + exprs, one root) and their key-column edges — as a **SQLAlchemy Core Join
-    construct**, not a string. Each catalog table becomes a lightweight ``table().alias()`` and
-    the edges become real ``==`` on-clauses (AND-ed for compound keys), walked from the root.
-    Returns None when no join metadata is registered (caller falls back to
-    ``catalog_source.from_sql`` for essences whose joins aren't decomposable — LATERAL unnest,
-    correlated TVFs)."""
+    """Build the FROM/JOIN for an essence from **join metadata in the registry** as a
+    **SQLAlchemy Core Join construct** (not a string). The edges (child -> parent) are essence
+    data; the ON *columns* are **inferred from the parent's identity key** (``catalog_key``, the
+    catalog convention that an FK column shares the referenced PK's name), and only overridden
+    (``child_col``/``parent_col``) where the catalog breaks that convention. So ``catalog_join``
+    is mostly pure graph structure. Returns None when no join metadata is registered (caller
+    falls back to ``catalog_source.from_sql`` — LATERAL unnest, correlated TVFs)."""
     rows = conn.execute(
         select(CATALOG_TABLE.c.alias, CATALOG_TABLE.c.expr, CATALOG_TABLE.c.is_root)
         .where(and_(CATALOG_TABLE.c.dialect == dialect, CATALOG_TABLE.c.essence == essence))).all()
     if not rows:
         return None
-    edges = {}
-    for j in conn.execute(select(CATALOG_JOIN.c.alias, CATALOG_JOIN.c.to_alias,
+    expr_of = {a: e for (a, e, _r) in rows}
+    keys = {}   # table expr -> [identity columns], the DRY convention
+    for k in conn.execute(select(CATALOG_KEY.c.table_name, CATALOG_KEY.c.col)
+                          .where(CATALOG_KEY.c.dialect == dialect).order_by(CATALOG_KEY.c.ord)):
+        keys.setdefault(k.table_name, []).append(k.col)
+    # edge (child, parent) -> [(child_col, parent_col), …]: inferred from parent identity when
+    # the recorded columns are NULL, else the explicit override pair(s).
+    edge_cols = {}
+    for j in conn.execute(select(CATALOG_JOIN.c.child, CATALOG_JOIN.c.parent,
                                  CATALOG_JOIN.c.child_col, CATALOG_JOIN.c.parent_col)
                           .where(and_(CATALOG_JOIN.c.dialect == dialect,
                                       CATALOG_JOIN.c.essence == essence))):
-        edges.setdefault(j.alias, []).append((j.child_col, j.to_alias, j.parent_col))
-    # columns each alias participates in (child on its side, parent on the target's) -> declare
-    # them on the lightweight tables so the on-clauses can reference them.
+        if j.child_col is None:
+            edge_cols[(j.child, j.parent)] = [(c, c) for c in keys[expr_of[j.parent]]]
+        else:
+            edge_cols.setdefault((j.child, j.parent), []).append((j.child_col, j.parent_col))
     used = {}
-    for a, elist in edges.items():
-        for (cc, to, pc) in elist:
-            used.setdefault(a, set()).add(cc)
-            used.setdefault(to, set()).add(pc)
+    for (child, parent), pairs in edge_cols.items():
+        for (cc, pc) in pairs:
+            used.setdefault(child, set()).add(cc)
+            used.setdefault(parent, set()).add(pc)
 
-    def make(alias, expr):
+    def make(alias):
+        expr = expr_of[alias]
         schema, name = expr.rsplit(".", 1) if "." in expr else (None, expr)
         return sa_table(name, *[sa_column(c) for c in sorted(used.get(alias, ()))],
                         schema=schema).alias(alias)
 
-    tbls = {a: make(a, e) for (a, e, _r) in rows}
+    tbls = {a: make(a) for a in expr_of}
     root = next(a for (a, _e, r) in rows if r)
-    ordered, placed, remaining = [root], {root}, [a for (a, _e, _r) in rows if a != root]
-    while remaining:
-        nxt = [a for a in remaining if {to for (_c, to, _p) in edges.get(a, [])} <= placed]
-        if not nxt:
-            raise ValueError(f"unresolved join order for {dialect}/{essence}: {remaining}")
-        for a in nxt:
-            ordered.append(a); placed.add(a); remaining.remove(a)
+    placed, ordered = {root}, []
+    while len(placed) < len(expr_of):
+        added = False
+        for (child, parent), pairs in edge_cols.items():
+            nc = (parent if child in placed and parent not in placed
+                  else child if parent in placed and child not in placed else None)
+            if nc is not None:
+                on = and_(*[tbls[child].c[cc] == tbls[parent].c[pc] for (cc, pc) in pairs])
+                ordered.append((nc, on)); placed.add(nc); added = True
+        if not added:
+            raise ValueError(f"disconnected join graph for {dialect}/{essence}")
     frm = tbls[root]
-    for a in ordered[1:]:
-        frm = frm.join(tbls[a], and_(*[tbls[a].c[cc] == tbls[to].c[pc]
-                                       for (cc, to, pc) in edges[a]]))
+    for (alias, on) in ordered:
+        frm = frm.join(tbls[alias], on)
     return frm
 
 
