@@ -1,0 +1,33 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "sqlserver", "essence": "extended_property",
+      "from_sql": "RULE4.extended_property AS ep",
+      "where_sql": null, "change_signal": null
+    },
+    {
+      "dialect": "sqlserver", "essence": "stats_histogram",
+      "from_sql": "sys.stats AS st JOIN sys.objects AS o ON o.object_id = st.object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id CROSS APPLY sys.dm_db_stats_histogram(st.object_id, st.stats_id) AS h",
+      "where_sql": "o.type IN ('U','V')", "change_signal": null
+    }
+  ],
+  "catalog_attr": [
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 0, "attr": "object_type", "expr": "ep.object_type"},
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 1, "attr": "object_schema", "expr": "ep.object_schema"},
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 2, "attr": "object_name", "expr": "ep.object_name"},
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 3, "attr": "column_name", "expr": "ep.column_name"},
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 4, "attr": "property_name", "expr": "ep.property_name"},
+    {"dialect": "sqlserver", "essence": "extended_property", "ord": 5, "attr": "property_value", "expr": "CASE WHEN SQL_VARIANT_PROPERTY(ep.property_value, 'BaseType') IN ('binary','varbinary') THEN CONVERT(NVARCHAR(4000), CONVERT(VARBINARY(8000), ep.property_value), 1) ELSE CONVERT(NVARCHAR(4000), ep.property_value) END"},
+
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 1, "attr": "object_name", "expr": "o.name"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 2, "attr": "stats_name", "expr": "st.name"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 3, "attr": "stats_id", "expr": "st.stats_id"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 4, "attr": "step_number", "expr": "h.step_number"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 5, "attr": "range_rows", "expr": "h.range_rows"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 6, "attr": "equal_rows", "expr": "h.equal_rows"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 7, "attr": "distinct_range_rows", "expr": "h.distinct_range_rows"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 8, "attr": "average_range_rows", "expr": "h.average_range_rows"},
+    {"dialect": "sqlserver", "essence": "stats_histogram", "ord": 9, "attr": "range_high_key", "expr": "CASE WHEN SQL_VARIANT_PROPERTY(h.range_high_key, 'BaseType') IN ('binary','varbinary') THEN CONVERT(NVARCHAR(4000), CONVERT(VARBINARY(8000), h.range_high_key), 1) ELSE CONVERT(NVARCHAR(4000), h.range_high_key) END"}
+  ]
+}
