@@ -29,24 +29,26 @@ _LAKE = MetaData()
 _CR = Table("column_role", _LAKE,
             Column("dataserver", String), Column("database", String),
             Column("sample_time", DateTime), Column("schema_name", String),
-            Column("object_name", String), Column("grouping_kind", String),
+            Column("object_name", String), Column("object_id", BigInteger),
+            Column("grouping_kind", String),
             Column("member_name", String), Column("ordinal", BigInteger),
             Column("data_type", String), Column("referenced_object", String),
             Column("referenced_member", String), schema="lake")
 
 # the column_role columns we keep in the registry (a useful subset of the 28), in order
-_SUBSET = ["schema_name", "object_name", "grouping_kind", "member_name",
+_SUBSET = ["schema_name", "object_name", "object_id", "grouping_kind", "member_name",
            "ordinal", "data_type", "referenced_object", "referenced_member"]
 _CONTEXT = ["dataserver", "database", "sample_time"]
 _COLS = _CONTEXT + _SUBSET
 # DuckLake column types for create_table (context first, then the subset)
 _DDL = ([("dataserver", "varchar"), ("database", "varchar"), ("sample_time", "timestamp")]
-        + [("schema_name", "varchar"), ("object_name", "varchar"), ("grouping_kind", "varchar"),
-           ("member_name", "varchar"), ("ordinal", "int64"), ("data_type", "varchar"),
-           ("referenced_object", "varchar"), ("referenced_member", "varchar")])
+        + [("schema_name", "varchar"), ("object_name", "varchar"), ("object_id", "int64"),
+           ("grouping_kind", "varchar"), ("member_name", "varchar"), ("ordinal", "int64"),
+           ("data_type", "varchar"), ("referenced_object", "varchar"),
+           ("referenced_member", "varchar")])
 _PARQUET_DDL = ("dataserver VARCHAR, database VARCHAR, sample_time TIMESTAMP, "
-                "schema_name VARCHAR, object_name VARCHAR, grouping_kind VARCHAR, "
-                "member_name VARCHAR, ordinal BIGINT, data_type VARCHAR, "
+                "schema_name VARCHAR, object_name VARCHAR, object_id BIGINT, "
+                "grouping_kind VARCHAR, member_name VARCHAR, ordinal BIGINT, data_type VARCHAR, "
                 "referenced_object VARCHAR, referenced_member VARCHAR")
 
 
@@ -253,8 +255,9 @@ class Registry:
         latest = (select(func.max(cr.c.sample_time))
                   .where(and_(cr.c.dataserver == dataserver, cr.c.database == database,
                               cr.c.sample_time <= when)).scalar_subquery())
-        stmt = (select(cr.c.schema_name, cr.c.object_name, cr.c.grouping_kind, cr.c.member_name,
-                       cr.c.ordinal, cr.c.data_type, cr.c.referenced_object, cr.c.referenced_member)
+        stmt = (select(cr.c.schema_name, cr.c.object_name, cr.c.object_id, cr.c.grouping_kind,
+                       cr.c.member_name, cr.c.ordinal, cr.c.data_type, cr.c.referenced_object,
+                       cr.c.referenced_member)
                 .where(and_(cr.c.dataserver == dataserver, cr.c.database == database,
                             cr.c.sample_time == latest))
                 .order_by(cr.c.schema_name, cr.c.object_name, cr.c.grouping_kind, cr.c.ordinal))

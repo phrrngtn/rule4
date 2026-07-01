@@ -105,8 +105,23 @@ def render(deltas, table_cc, dialect):
     return out
 
 
+def recreate_ddl(to_cc, dialect):
+    """``DROP TABLE`` + ``CREATE TABLE`` — the DDL for a detected drop-and-recreate (the
+    object_id identity changed), where an ALTER changeset would be wrong."""
+    d = _DIALECTS[dialect]
+    t = _table_ref(to_cc, d["q"])
+    cols = ", ".join(f"{d['q'](c.name)} {c.source_type}" for c in to_cc.columns)
+    return [f"DROP TABLE {t};", f"CREATE TABLE {t} ({cols});"]
+
+
 def migration_ddl(from_cc, to_cc, *, dialect=None):
-    """The list of ``ALTER TABLE`` statements migrating ``from_cc``'s schema to ``to_cc``'s.
-    ``dialect`` defaults to the source dialect of the revisions. Schema-only; renames and
-    column order are not migrated (see the module docstring)."""
-    return render(schema_diff(from_cc, to_cc), to_cc, dialect or from_cc.dialect)
+    """The DDL migrating ``from_cc``'s schema to ``to_cc``'s. Normally an ``ALTER TABLE``
+    changeset — but if the two revisions carry **different object_id**s (the identity LT),
+    the object was dropped and recreated, not evolved, so emit ``DROP``+``CREATE`` instead.
+    ``dialect`` defaults to the source dialect. Schema-only; renames and column order are not
+    migrated (see the module docstring)."""
+    dialect = dialect or from_cc.dialect
+    if (from_cc.object_id is not None and to_cc.object_id is not None
+            and from_cc.object_id != to_cc.object_id):
+        return recreate_ddl(to_cc, dialect)
+    return render(schema_diff(from_cc, to_cc), to_cc, dialect)

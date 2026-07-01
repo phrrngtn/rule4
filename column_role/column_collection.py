@@ -63,18 +63,21 @@ class Col:
 
 
 class ColumnCollection:
-    def __init__(self, schema, name, columns, *, key=None, dialect="sqlserver"):
+    def __init__(self, schema, name, columns, *, key=None, dialect="sqlserver", object_id=None):
         self.schema, self.name, self.columns, self.key, self.dialect = schema, name, columns, key, dialect
+        self.object_id = object_id   # the identity LT (drop-recreate detection); None if unknown
 
     @classmethod
     def from_column_role(cls, registry, dataserver, database, table, when, *,
                          schema="main", key=None, grouping_kind="table", dialect="sqlserver"):
-        """Assemble a ColumnCollection from a column_role capture (the schema time-series)."""
+        """Assemble a ColumnCollection from a column_role capture (the schema time-series).
+        Carries the object_id (identity LT) so a migration can tell a recreate from an ALTER."""
+        rows = [r for r in registry.schema_as_of(dataserver, database, when)
+                if r[3] == grouping_kind and r[1] == table and r[0] == schema]
         cols = [Col(member_name, data_type, ordinal, dialect)
-                for (sname, oname, gkind, member_name, ordinal, data_type, _ro, _rm)
-                in registry.schema_as_of(dataserver, database, when)
-                if gkind == grouping_kind and oname == table and sname == schema]
-        return cls(schema, table, cols, key=key, dialect=dialect)
+                for (_s, _o, _oid, _gk, member_name, ordinal, data_type, _ro, _rm) in rows]
+        return cls(schema, table, cols, key=key, dialect=dialect,
+                   object_id=(rows[0][2] if rows else None))
 
     # migrate this revision's schema to another revision's — schema-only ALTER TABLE DDL
     def migration_to(self, other, *, dialect=None):

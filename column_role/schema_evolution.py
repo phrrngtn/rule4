@@ -24,7 +24,7 @@ def desired_columns(registry, dataserver, database, table, when, *, schema="main
     """The DuckLake ``(name, type)`` column list for ``table`` as column_role knew it at
     ``when`` — ordered, types resolved from ``type_reference`` for the source dialect."""
     return [(member_name, ducklake_type(data_type, dialect))
-            for (sname, oname, gkind, member_name, ordinal, data_type, _ro, _rm)
+            for (sname, oname, oid, gkind, member_name, ordinal, data_type, _ro, _rm)
             in registry.schema_as_of(dataserver, database, when)
             if gkind == grouping_kind and oname == table and sname == schema]
 
