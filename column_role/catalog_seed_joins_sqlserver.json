@@ -36,7 +36,15 @@
     {"dialect": "sqlserver", "essence": "unique", "alias": "o", "expr": "sys.objects", "is_root": 0},
     {"dialect": "sqlserver", "essence": "unique", "alias": "s", "expr": "sys.schemas", "is_root": 0},
     {"dialect": "sqlserver", "essence": "unique", "alias": "ic", "expr": "sys.index_columns", "is_root": 0},
-    {"dialect": "sqlserver", "essence": "unique", "alias": "c", "expr": "sys.columns", "is_root": 0}
+    {"dialect": "sqlserver", "essence": "unique", "alias": "c", "expr": "sys.columns", "is_root": 0},
+
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "fk", "expr": "sys.foreign_keys", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "o", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "fkc", "expr": "sys.foreign_key_columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "pc", "expr": "sys.columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "ro", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "foreign_key", "alias": "rc", "expr": "sys.columns", "is_root": 0}
   ],
   "catalog_join": [
     {"dialect": "sqlserver", "essence": "column", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
@@ -62,7 +70,16 @@
     {"dialect": "sqlserver", "essence": "unique", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
     {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "kc", "child_col": "object_id", "parent_col": "parent_object_id"},
     {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "kc", "child_col": "index_id", "parent_col": "unique_index_id"},
-    {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "c", "child_col": null, "parent_col": null}
+    {"dialect": "sqlserver", "essence": "unique", "child": "ic", "parent": "c", "child_col": null, "parent_col": null},
+
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fk", "parent": "o", "child_col": "parent_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "o", "parent": "s", "child_col": null, "parent_col": null},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fkc", "parent": "fk", "child_col": "constraint_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fk", "parent": "ro", "child_col": "referenced_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fkc", "parent": "pc", "child_col": "parent_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fkc", "parent": "pc", "child_col": "parent_column_id", "parent_col": "column_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fkc", "parent": "rc", "child_col": "referenced_object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "foreign_key", "child": "fkc", "parent": "rc", "child_col": "referenced_column_id", "parent_col": "column_id"}
   ],
   "catalog_attr": [
     {"dialect": "sqlserver", "essence": "column", "ord": 6, "attr": "default_expr", "expr": "dc.definition"}
