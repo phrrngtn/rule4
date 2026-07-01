@@ -1,206 +1,80 @@
 # Yoke, Essence, Fixpoint
 
-*The vocabulary that names why Rule4 can't-not-work. A conceptual companion to [[Catalog As Data]].*
+*Three words that name why the catalog-as-data move works, and how far the guarantee reaches. A conceptual companion to [[Catalog As Data]] (cited below as CAD).*
 
-This note records three words — **yoke**, **essence**, **fixpoint** — and the way they lock
-together. None is decoration; each names a load-bearing part of the construction, and having the
-names is what lets the "why" be handed to someone else rather than merely felt while building.
-Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]].
+This note fixes vocabulary. It names the pre-essence referent (**yoke**), the projected definition (**essence**), and the structural property that makes the reflexive move sound (**fixpoint**) — and, as importantly, marks where each claim stops. Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]].
 
-> **Attribution.** The construction, its framing, and the working vocabulary — Rule4 itself, the
-> *yoke*, "can't-not-work," SELECT-as-transposition — are Paul's. The **correspondence to formal
-> terms** — fixed point / least fixed point, Knaster–Tarski and Kleene iteration, the Y-combinator
-> reading of recursion, the Lockean nominal/real-essence distinction as applied here, the `*yug-*`
-> etymology — is Claude's contribution, worked out in conversation. The point of writing it down is
-> to get the words out: to SELECT the intuition into the register in which it can be handed to
-> others. The division above is itself, in miniature, the move of §8 below — a yoke (the built
-> thing) and its projection onto authoritative relations (the formal names).
-
-> *A bare section reference points to [[Catalog As Data]]; this note's own sections are marked
-> "above" or "below."*
+> **Attribution.** The construction and its working vocabulary — Rule4, the *yoke*, "can't-not-work," SELECT-as-transposition — are Paul's. The correspondence to formal terms — fixed point, least fixed point, idempotence, the Lockean nominal/real-essence distinction as applied here, the `*yug-*` etymology — was worked out with Claude in conversation. That correspondence is an *analogy under test*, not a proof; §6 corrects one place where the analogy first over-reached. The point of writing it down is to make the intuition communicable, not to certify it.
 
 ---
 
 ## 1. The yoke — a name for the pre-essence referent
 
-The meta-schema's job (Catalog As Data §4–6) is to project an **essence** — a chosen bundle of
-attributes (§4 below) — from an authoritative catalog relation. That framing immediately
-opens a referring problem: what do you call the thing *before* you have projected an essence onto
-it? The opaque referent on the dataserver that you point the machine at but have not yet decided
-how to define?
+The meta-schema's job (CAD §4–6) is to project an **essence**, a chosen bundle of attributes, from an authoritative catalog relation. That raises a prior question: what do you call the thing *before* projection — the opaque referent on the dataserver you point the machine at but have not yet decided how to define?
 
-A **yoke** — Hiberno-English for an under-specified thing, a whatchamacallit — is the name for
-exactly that state. Saying "hand me that yoke" asserts the thing is real, present, and pointable-at,
-and asserts *nothing else*. It is pure referent with the description deliberately withheld — and the
-withholding is temporary and deliberate, not a claim of unknowability. That is precisely the state
-`capture_essence` consumes. The pipeline then reads, in one line, as **a machine for turning yokes
-into essences**: point it at an opaque yoke, get back a named bundle of attributes.
+A **yoke** — Hiberno-English for an under-specified thing, a whatchamacallit — is the name for that state. "Hand me that yoke" asserts the thing is real, present, and pointable-at, and asserts nothing else. It is pure referent with the description deliberately, temporarily withheld. That is what `capture_essence` consumes, so the pipeline reads in one line: **a machine for turning yokes into essences.** Point it at an opaque yoke, get back a named bundle of attributes.
 
 ## 2. Why "yoke" and not "object", "entity", or "thing"
 
-The word fills a genuine lexical gap. Every technical alternative pre-commits to something the
-architecture is trying to defer:
+The word fills a real lexical gap. Each technical alternative pre-commits to something the architecture defers:
 
-- **object** imports OO baggage — identity, attributes, methods — the exact commitments the model
-  defers until projection.
-- **entity** is worse: it collides with ER-modelling's precisely-named, attributed entities, the
-  opposite of an un-projected referent.
-- **thing** drags in the Aristotelian *thing-with-an-essence* reading the project explicitly rejects
-  (§5: not *"a database is a thing with attributes"*).
-- **referent** is exact but cold, and carries no sense of *deferred* naming.
+- **object** imports OO baggage — identity, attributes, methods — the commitments we withhold until projection.
+- **entity** is worse: it collides with ER-modelling's precisely-named, attributed entities, the opposite of an un-projected referent.
+- **thing** carries the Aristotelian *thing-with-an-essence* reading the project rejects (CAD §5: not "a database is a thing with attributes").
+- **referent** is exact but cold, with no sense of *deferred* naming.
 
-"Yoke" has none of these problems, and four properties that matter:
+"Yoke" avoids all four, and has four properties that matter. It is **ontologically empty**, so it holds an un-modelled referent in play without inviting elaboration — a discipline against premature specification. It **carries the invariant in ordinary usage**: calling a thing a yoke makes no claim that could be false, so naming it later can only add structure, never contradict. It is **grain-agnostic** — login, database, schema, column are all just yokes before projection, matching the uniformity the proxy principle claims (CAD §5). And it **names the zero on the resolution dial** (CAD §6): the yoke is resolution zero, no relations closed over. The folk word already is the name for that limit.
 
-1. **Ontologically empty** — so it cannot leak premature structure. It holds an un-modelled referent
-   in play without inviting elaboration. (A discipline device against over-specification, notably
-   when iterating with a tireless collaborator that will happily start hanging attributes on any
-   noun that invites it.)
-2. **Carries the invariant in its ordinary usage** — calling a thing a yoke makes no claim that
-   could be false. So essence-ifying a yoke can only ever *add* truthful named structure; there is
-   no false assertion to begin from. This makes §1's formal property (failure axis is **coverage,
-   not correctness**) feel obvious rather than argued.
-3. **Grain-agnostic** — a login, a database, a schema, a column are all just yokes before
-   projection. One flat word covers server-object down to column, which is exactly the uniformity
-   the **proxy principle** (§5) claims. "A login is an entity and a column is an entity" wince;
-   "both are yokes" does not.
-4. **Names the zero on the resolution dial** (§6) — the yoke is resolution zero, no relations closed
-   over. "The limit case names itself" only works because the folk word already *is* the name for
-   that limit; without it, the low end of the dial is anonymous and the
-   microscope-with-objectives metaphor is lopsided.
+## 3. Etymological note
 
-## 3. Etymological note — `yoke` and `join` share a root
+The "thing" sense of *yoke* is the ox-yoke generalised — a piece of apparatus. Old English `geoc`, from Proto-Germanic `*juką`, from PIE `*yugóm`, the "joining" root that also gives Latin `iungere` and English *join* / *junction*.
 
-The "thing" sense of *yoke* is the same word as the ox-yoke — a piece of apparatus, generalised.
-That word is Old English *geoc*, from Proto-Germanic *\*juką*, from PIE *\*yugóm* — the "joining"
-root, which also gives Latin *iungere* → English **join** / *junction*.
-
-The operation that resolves a yoke into an essence is, mechanically, the **JOIN** (§4, "the JOIN as
-relational data"). So the word for the unresolved referent and the operator that resolves it are
-etymological cousins under *\*yug-*, "to join." In a project about Rule 4 — the catalog being Rule4
-about itself — a placeholder-word and a resolution-operator that turn out to share a root is the
-kind of self-referential rhyme the whole construction already delights in. (This one is a real
-shared root, not a coincidence; contrast the honest non-coincidence in §9 below.)
+The operation that resolves a yoke into an essence is, mechanically, the JOIN (CAD §4). So the placeholder-word and the resolution-operator share a root under `*yug-`, "to join." A real shared root, worth one sentence and no more. (Contrast the genuine non-coincidence in §9.)
 
 ## 4. Essence — nominal, not real
 
-The word *essence* carries the note's one genuine philosophical load, and it is easy to misread. An
-**essence**, here, is the named bundle of attributes you project onto a yoke — the answer to "how,
-for now, shall we define this thing?" The apparent problem: *essence* usually means the
-**intrinsic** what-it-is a thing has independent of us, whereas ours is *chosen* and shifts with
-purpose (§6). That looks like a misuse of the word.
+An **essence** is the named bundle of attributes projected onto a yoke: the answer to "how, for now, shall we define this thing?" The word looks misused, because *essence* usually means a thing's intrinsic what-it-is, independent of us, whereas ours is chosen and shifts with purpose (CAD §6).
 
-It is not — once you take *essence* in **Locke's** sense rather than Aristotle's. Locke splits it in
-two:
+The apparent misuse dissolves in **Locke's** sense of the word rather than Aristotle's. Locke splits essence in two. A **real essence** is the hidden internal constitution from which observable properties flow; for substances he holds it is inaccessible — we see the effects, never the constitution. A **nominal essence** is the abstract idea, the bundle of properties we file under a general name: "the workmanship of the understanding," made by us, not discovered.
 
-- a **real essence** — the hidden internal constitution from which a thing's observable properties
-  flow. For substances (a lump of gold, a database) it is, he insists, *inaccessible*: we never see
-  the constitution, only its effects.
-- a **nominal essence** — the abstract idea, the collection of properties, that we bundle under a
-  general name. It is, in his phrase, *"the workmanship of the understanding"* — **made** by us, not
-  discovered.
+Every essence here is nominal. We never touch the real constitution of the thing on the dataserver; we project the catalog's *account* of it — the proxy row and the columns we choose to close over. The word is exact, and the irony is only apparent. A database has no accessible real essence to be unfaithful to, so the nominal essence is all there is, and it is ours to compose. Because it is chosen, no single one is privileged: a thing has a *family* of nominal essences, thin to thick, indexed by purpose. The resolution dial is the choice of which one to attach.
 
-Every essence in this project is a **nominal** essence. We never touch the real constitution of the
-thing on the dataserver; we project the catalog's *account* of it — the proxy row and the columns
-we choose to close over. So the word is exactly right, and the irony is only apparent: it dissolves
-the moment you stop being an Aristotelian about it. A database *has* no accessible real essence to
-be unfaithful to; the nominal essence is all there is, and it is ours to compose.
+## 5. One turn of the machine
 
-This is what binds the three words together. A **yoke** is a referent with *no nominal essence yet*
-— the description withheld (§1 above). To **essence** it is to attach one: name a bundle, project
-it. And because the bundle is SELECTed from an authoritative relation rather than invented, it can
-only ever *add* truthful structure — it asserts nothing the catalog does not already hold, so it
-cannot assert a falsehood. That "can only add truth" is the seed of the **fixpoint** property
-developed next (§5–7 below): the reason essencing a yoke *can't-not-work*. And because a nominal
-essence is chosen, there is no privileged one — a thing has a *family* of nominal essences, thin to
-thick, indexed by purpose. The resolution dial (§6) is exactly the choice of *which* nominal essence
-to attach.
+Concretely, at the server-object grain. The **yoke** is a database — an opaque object with no attributes to project directly. Its **proxy** is the `sys.databases` row (CAD §5). A **thin essence** is `(name, database_id, state_desc)` — enough to index it. A **thick essence** joins more authoritative relations: `sys.database_files` makes it a storage object, `sys.database_principals` plus permissions make it a security object, `extended_properties` make it classified. Same yoke, one proxy, a family of essences. The dial (CAD §6) is simply *which* relations you close over and *how many*. Nothing is modelled; every attribute in every essence is SELECTed from a relation the server already maintains.
 
-## 5. Fixpoint — the term, precisely
+## 6. Fixpoint — idempotence, and the other kind
 
-A **fixed point** of a function `f` is a value `x` with `f(x) = x` — the input the operation returns
-unchanged. (Iterating `cos` converges to ≈0.739, the `x` where `cos(x) = x`; the fixed points of
-squaring are 0 and 1.)
+A **fixed point** of a function `f` is a value `x` with `f(x) = x`: the input the operation returns unchanged.
 
-The step that makes this *this project's* term, not an unrelated one: let the operation be
+Let `D` = "represent this as relational data." Point `D` at a database and you get the catalog (`sys.columns`, `sys.objects`, …). Apply `D` again and the catalog already *is* relations, so `D(catalog) = catalog`. The catalog is a fixed point of `D`.
 
-> **D = "represent this as relational data."**
+Be honest about *which kind* this is. `D` is **idempotent** — its output is already in relational form, so applying it twice does nothing more than applying it once. The fixed points of an idempotent map are exactly its image, so the catalog is a fixed point for the same modest reason *every* relational representation `D` emits is one. The catalog is not singled out by some deep property; it simply lives in the codomain. The content here is idempotence, and idempotence is exactly what halts the regress: you might expect to need a meta-schema to describe the schema, then a meta-meta-schema, forever, but once `D(x) = x` there is no higher level to climb to. Rule 4 is the design mandate that makes `D` idempotent on schema-description — it requires the self-description to live in the same medium as the data. Real, and clarifying, but modest.
 
-Point `D` at a database and you get the catalog (`sys.columns`, `sys.objects`, …). Apply `D` again —
-represent the catalog as data — and the catalog **already is** relations, so `D(catalog) =
-catalog`. The catalog is a fixed point of `D`. This is not an analogy to `f(x) = x`; it *is*
-`f(x) = x` with `f` = describe-as-data and `x` = the catalog.
+There is a second, genuinely deeper kind of fixpoint in the system, and it should not be confused with the first. Recursive queries — `WITH RECURSIVE`, transitive closure, reachability, Datalog, and the lineage walk of CAD §13 — are **least fixed points** of monotone operators, reached by iterating from ∅ to convergence (Kleene iteration; Knaster–Tarski). Here you *grind up to* the fixed point rather than landing on it by idempotence. (Recursion in general is this: a recursive definition's meaning is the least fixed point of a functional; the Y combinator solves `f = F(f)`.)
 
-**Codd's Rule 4 is precisely the statement that this fixed point exists** — the meta-level (schema
-description) is representable in the same medium (relations) as the object level. That is why the
-prose instincts in Catalog As Data §5 were sound ("no bottom or top, just proxies"; "turtles").
-Self-reference normally threatens infinite regress: to describe the schema you need a meta-schema,
-then a meta-meta-schema, forever. **The fixed point halts the regress** — once `D(x) = x`, climbing
-another level yields nothing new. Self-reference *plus* a fixed point is stable self-description
-instead of vicious regress. The catalog is where the tower folds into itself.
+The two share only the bare schema `f(x) = x`. The reflexive catalog fixpoint is idempotence; the recursive one is the substantive, iterate-to kind. One word, two very different weights — and the note earlier over-reached by letting the second lend prestige to the first. It does not. Keep them separate.
 
-## 6. Two kinds of fixpoint already in this project
+## 7. What the fixpoint buys, and what it does not
 
-The one word does two distinct jobs; separating them is most of the understanding.
+The reflexive fixpoint (§6, idempotence) buys one specific, real thing: at the **description layer**, `D` introduces no new *kind* of object, so no differently-shaped, possibly-wrong representation can be interposed between levels. The catalog's self-description is therefore correct-by-construction, and its only way to fall short is to omit an essence you did not record. *This* is the precise, defensible content of "can't-not-work": at the metadata layer the failure axis is **coverage, not correctness**, because there is no modelling step that could record something wrongly.
 
-- **Reflexive / solve-for.** The self-hosting catalog and the self-hosting registry
-  (§4 "Self-hosting", `to_lake`/`load_from_lake`). The catalog is *the* object satisfying "I
-  describe myself as data." One equation, whole-object solution. This is the reflexive fixpoint.
-- **Iterate-to / least fixed point.** Recursive queries — `WITH RECURSIVE`, transitive closure,
-  reachability, Datalog — are **least fixed points**, computed by iterating a monotone operator from
-  ∅ to convergence (Knaster–Tarski, reached by Kleene iteration). When §13 says lineage is "just
-  more authoritative relations" and walks the join graph to closure, that convergence *is* a least
-  fixed point landing.
+The slogan does not extend to the whole pipeline, and it is important to say so plainly. The replica does more than self-describe the catalog: it maps types, round-trips values, and reconstructs temporally at scale. Those are ordinary engineering with ordinary failure modes, and they *can* be wrong, not merely incomplete — `money` mapped to `numeric` is not exact, a "funky" value may not round-trip, inline-MVCC snapshot counts strain under high-frequency CDC. CAD §14 lists these as the replica's real limits, and they are correctness-grade limits at the value grain. The fixpoint says nothing about them.
 
-Same underlying notion (an operation with an input it returns unchanged); two faces — sometimes you
-name the solution directly, sometimes you grind up to it. Recursion in general is the same
-phenomenon: the meaning of a recursive definition is the fixed point of a functional (the Y
-combinator solves `f = F(f)`). The relational model does not merely tolerate fixpoints; recursive
-querying is *defined* as one.
+So scope the claim: coverage-not-correctness is a property of the **catalog-as-data move**, not a global guarantee over the pipeline that carries the data. Stating it this way makes it stronger, because it is now true where asserted and silent where it would be false.
 
-## 7. Correct-by-construction is a fixpoint property
+## 8. SELECT as transposition — an analogy, held to its limit
 
-The reason the pipeline "can't-not-work," with no failure mode but incompleteness, **is** the
-fixed-point property. `D` introduces no new *kind* of thing — its output is the same sort of object
-as its input — so there is no level at which a different, possibly-wrong representation could slip
-in. You are not stacking a tower of models that might each mis-describe the layer below; you are
-sitting on the one object that describes itself. **"Correct-by-construction" and "fixed point" are
-the same observation stated twice.**
+The project's move has a suggestive echo in the act of *explaining the project*. An intuition can sit as a yoke: real, load-bearing, pointable-at, but un-named in the register others accept as explanation. Making it communicable resembles projection more than translation. Translation risks loss across a foreign medium; projection — SELECT — exhibits what is already there and asserts nothing new. The formal names in this note (fixed point, nominal essence) were not invented for the occasion; they pre-existed it, waiting to be closed over. In that sense explaining the work is SELECTing it into a shareable register, and the honest verb is SELECT, not *transpose*.
 
-## 8. SELECT as the transposition operator
+Hold the analogy to its limit, because it has one the reflexive fixpoint does not. An explanation is **not** correct-by-construction. There is no catalog behind "the available ideas"; the map from intuition to formalism is exactly the kind of projection that can *mislead*, and §6 is a worked example — the fixpoint analogy first over-reached by dressing idempotence as something deeper, and had to be corrected. The failure mode of an explanation is that it can be wrong, not merely incomplete. The analogy earns its place by illuminating, not by immunity. (`sys.locke` and `sys.fixpoint` are figures of speech, not catalog views.)
 
-The project's own move applies reflexively to *explaining the project*. An intuition can be a yoke:
-real, load-bearing, pointable-at, but with no representation fit for handing to others — un-named in
-the register others accept as explanation. Making it communicable is not *translation* (which risks
-loss across a foreign medium) but **projection**: closing over authoritative relations that were
-already there and returning a view. Here the relations are `sys.locke` (nominal essence) and
-`sys.fixpoint` — whimsical inventions, of course; there is no such catalog view. The conceit is
-that these formal ideas were already authoritative, already *there* in the catalog of available
-thought, waiting to be SELECTed, so explaining the project is itself a projection over relations
-that pre-exist it. The projection asserts nothing new, so the explanation is correct-by-construction
-for the same reason the replica is — it is a view over facts already guaranteed, not a new argument
-that must be defended.
-
-The right verb is **SELECT**, not *transpose*. SELECT adds nothing; it exhibits what the catalog
-already holds. The failure mode of an under-explained idea is therefore the project's own failure
-mode: not *wrong*, only **incomplete** — un-projected, not mis-projected. The single dial is
-coverage: how much of what is already, authoritatively there you bother to SELECT.
-
-This is why "phase 0" — the groundwork laid so far: the mechanism built, and the move proven on the
-one referent that resisted it longest — is a starting line, not a finish. The move has now been
-demonstrated on the hardest possible referent — an inchoate, long-held, felt-but-unsayable intuition
-— and it still resolved cleanly into a communicable essence. Every data-centric problem downstream
-is a yoke sitting still on a dataserver, strictly easier than that. The operator is total on the
-domain of interest; what remains is coverage.
+What survives, and is genuinely useful: "phase 0" is a starting line, not a finish. The mechanism is built and the move is demonstrated end to end (CAD §15). Every data-centric problem downstream is a yoke sitting still on a dataserver, and the remaining work along the axis the fixpoint governs is coverage — how much of what is already, authoritatively there you bother to SELECT.
 
 ## 9. Honest non-coincidence
 
-The `*yug-*` link in §3 above is a real shared root. The following is **not** a shared root, flagged
-precisely so it is not mistaken for one: the iterate-to fixed point (§6 above) is reached by taking
-**joins** — least upper bounds up a lattice. That "join" is lattice-theoretic, not SQL's relational
-JOIN. "The resolution operator is JOIN" and "the fixpoints are reached by joins" are both true, in
-two unrelated vocabularies. A genuine pun, a collision — not family.
+The `*yug-*` link in §3 is a real shared root. The following is not, and is flagged so it is not mistaken for one. The iterate-to fixed point (§6) is reached by taking **joins** — least upper bounds up a lattice. That "join" is lattice-theoretic, not SQL's relational JOIN. "The resolution operator is JOIN" and "the fixpoints are reached by joins" are both true, in two unrelated vocabularies. A genuine pun, a collision — not family.
 
 ---
 
-See also: [[Catalog As Data]], [[Column Role Metamodel]], [[DuckLake OOB Writer]],
-[[Composable Relation Builders]].
+See also: [[Catalog As Data]], [[Column Role Metamodel]], [[DuckLake OOB Writer]], [[Composable Relation Builders]].
