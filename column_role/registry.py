@@ -129,11 +129,24 @@ def projection_body(dialect: str) -> str:
     return re.split(r"\bGO\b", after)[0].strip().rstrip(";")
 
 
-def capture(cursor, dialect: str, dataserver: str, database: str, sample_time) -> list[tuple]:
-    """Run the column_role projection on `cursor`'s source and widen each row with
-    (dataserver, database, sample_time). Returns rows in `_COLS` order."""
+def capture(cursor, dialect: str, dataserver: str, database: str, sample_time,
+            *, only=None) -> list[tuple]:
+    """Read 2 — the full column sample. Run the column_role projection on `cursor`'s source
+    and widen each row with (dataserver, database, sample_time); returns rows in `_COLS` order.
+
+    ``only`` (a collection of object_names) **prunes** the projection to just those objects —
+    the HWM/dirty-set prune: transport the wide column detail only for objects the identity
+    probe (Read 1) showed changed. The IN-list is bound (qmark), so the values are parameters."""
     sel = ", ".join(_SUBSET)
-    rows = cursor.execute(f"SELECT {sel} FROM ( {projection_body(dialect)} ) t").fetchall()
+    sql = f"SELECT {sel} FROM ( {projection_body(dialect)} ) AS t"
+    if only is not None:
+        only = list(only)
+        if not only:
+            return []
+        sql += f" WHERE t.object_name IN ({', '.join('?' for _ in only)})"
+        rows = cursor.execute(sql, only).fetchall()
+    else:
+        rows = cursor.execute(sql).fetchall()
     return [(dataserver, database, sample_time) + tuple(r) for r in rows]
 
 
@@ -240,6 +253,27 @@ class Registry:
             and_(si.c.dataserver == dataserver, si.c.database == database))
         with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
             return conn.execute(stmt).scalar()
+
+    def dirty_objects(self, dataserver: str, database: str):
+        """The Read-2 prune input: object_names to re-sample = the latest identity probe
+        (Read 1) diffed against the latest full capture (Read 2) by **object_id**
+        (clock-independent) — objects that are new or whose object_id changed (recreated).
+        In-place ALTERs (same object_id) are the modify_date signal — union in the
+        schema_anomalies 'altered' set if you re-sample those too."""
+        si, cr = _SI, _CR
+        lp = (select(func.max(si.c.sample_time)).where(
+            and_(si.c.dataserver == dataserver, si.c.database == database)).scalar_subquery())
+        lc = (select(func.max(cr.c.sample_time)).where(
+            and_(cr.c.dataserver == dataserver, cr.c.database == database)).scalar_subquery())
+        probe_q = select(si.c.object_name, si.c.object_id).where(and_(
+            si.c.dataserver == dataserver, si.c.database == database, si.c.sample_time == lp))
+        full_q = select(cr.c.object_name, cr.c.object_id).where(and_(
+            cr.c.dataserver == dataserver, cr.c.database == database,
+            cr.c.sample_time == lc)).distinct()
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            probe = {n: oid for n, oid in conn.execute(probe_q).fetchall()}
+            full = {n: oid for n, oid in conn.execute(full_q).fetchall()}
+        return sorted(n for n, oid in probe.items() if full.get(n) != oid)
 
     def dispose(self):
         self._eng.dispose()
