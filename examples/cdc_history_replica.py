@@ -40,12 +40,19 @@ def main():
     # --- enable CDC on the database + a fresh table ---
     cur.execute("IF (SELECT is_cdc_enabled FROM sys.databases WHERE name='rule4_test') = 0 "
                 "EXEC sys.sp_cdc_enable_db")
-    cur.execute("IF OBJECT_ID('dbo.cust') IS NOT NULL DROP TABLE dbo.cust")
+    # idempotent reset: disable any existing capture instance *before* dropping, else a crash
+    # leaves an orphaned dbo_cust instance that blocks re-enabling (22926).
+    cur.execute("""IF OBJECT_ID('dbo.cust') IS NOT NULL
+                   BEGIN
+                     IF EXISTS (SELECT 1 FROM cdc.change_tables ct
+                                JOIN sys.tables t ON t.object_id = ct.source_object_id
+                                WHERE t.name = 'cust')
+                       EXEC sys.sp_cdc_disable_table @source_schema='dbo', @source_name='cust',
+                            @capture_instance='dbo_cust';
+                     DROP TABLE dbo.cust;
+                   END""")
     cur.execute("CREATE TABLE dbo.cust (id INT PRIMARY KEY, name NVARCHAR(50), region NVARCHAR(50))")
-    cur.execute("""IF NOT EXISTS (SELECT 1 FROM cdc.change_tables ct
-                                  JOIN sys.tables t ON t.object_id = ct.source_object_id
-                                  WHERE t.name = 'cust')
-                   EXEC sys.sp_cdc_enable_table @source_schema='dbo', @source_name='cust',
+    cur.execute("""EXEC sys.sp_cdc_enable_table @source_schema='dbo', @source_name='cust',
                         @role_name=NULL, @supports_net_changes=1""")
 
     # --- changes (bound values), incl. an intermediate update (b -> b2 -> b3) CDC retains ---
@@ -102,16 +109,25 @@ def main():
     with dl.lake_reader(f"sqlite:{base}/cat.sqlite", f"{base}/data") as conn:
         lake_state = {r[0]: r[1] for r in
                       conn.execute(text("SELECT id, name FROM lake.cust")).fetchall()}
-        snaps = conn.execute(text(
-            "SELECT snapshot_time FROM lake.snapshots() ORDER BY snapshot_id")).fetchall()
-        history = [conn.execute(
-            text("SELECT name FROM lake.cust AT (TIMESTAMP => :ts) WHERE id = :k")
-            .bindparams(ts=t[0], k=2)).fetchall() for t in snaps]
-    id2_versions = [name for rows in history for (name,) in rows]
+        # Address history by the logical clock — the snapshot VERSION, not the wallclock. CDC
+        # commits within the same second share a snapshot_time, so AT(TIMESTAMP) can't separate
+        # them; each is still a distinct snapshot_id. (Schema-only snapshots before cust exists
+        # raise and are skipped.)
+        sids = [s[0] for s in conn.execute(text(
+            "SELECT snapshot_id FROM lake.snapshots() ORDER BY snapshot_id")).fetchall()]
+        id2_versions = []
+        for sid in sids:
+            try:
+                rows = conn.execute(text(
+                    f"SELECT name FROM lake.cust AT (VERSION => {int(sid)}) WHERE id = 2")).fetchall()
+                id2_versions += [n for (n,) in rows]
+            except Exception:
+                pass  # snapshot predates the cust table
     logger.info("SQL Server now : {state}", state=sql_state)
     logger.info("DuckLake now   : {state}", state=lake_state)
     logger.info("mirrors source : {ok}", ok=sql_state == lake_state)
-    logger.info("id=2 across snapshots (real commit times): {versions}", versions=id2_versions)
+    logger.info("id=2 across snapshot versions (logical-clock addressed): {versions}",
+                versions=id2_versions)
     logger.info("intermediate b2 retained: {ok}", ok="b2" in id2_versions)
 
     cur.execute("EXEC sys.sp_cdc_disable_table @source_schema='dbo', @source_name='cust', "

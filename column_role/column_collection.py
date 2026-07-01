@@ -310,10 +310,12 @@ class CDCDriver:
 
     Two things differ from :class:`ChangeTrackingDriver`, both already inside the seam:
 
-    * **A real commit time.** CDC's ``lsn_time_mapping`` gives each LSN its transaction time,
-      so ``__tt`` is ``fn_cdc_map_lsn_to_time(__$start_lsn)`` — a true timestamp; no synthetic
-      ``snapshot_time`` hook needed (the default datetime coercion applies). The LSN itself is
-      carried as ``__lsn`` only to advance the watermark (``max(__lsn)``).
+    * **The LSN is the staple, not the wallclock.** A DB wallclock can skew/step, so it can't
+      be trusted for ordering; ``__tt`` is the **LSN** (``__$start_lsn``) — a reliable monotonic
+      logical clock — which staples the commits *and* advances the watermark (``max(__tt)``).
+      ``cdc.lsn_time_mapping`` (``fn_cdc_map_lsn_to_time``) still supplies a real commit time,
+      but only as the ``snapshot_time`` *label* for ``AT (TIMESTAMP)``, coalesced to a running
+      max in LSN order so it stays monotonic in the logical clock (see ``snapshot_time``).
     * **No base-table join, and a frozen column set.** Values come straight from the change
       table — but that table is frozen at ``sp_cdc_enable_table`` time, so a new source column
       is *silently not captured*. Schema evolution requires a capture-instance rollover (up to
@@ -332,10 +334,13 @@ class CDCDriver:
         proj = tailing_projection([(c.name, c.source_type) for c in cc.columns],
                                   "sqlserver", table_alias="ct")
         op = "CASE ct.[__$operation] WHEN 1 THEN 'D' WHEN 2 THEN 'I' WHEN 4 THEN 'U' END"
+        # __tt is the **LSN** — the reliable monotonic logical clock (the staple + watermark).
+        # The wallclock (__wall, from lsn_time_mapping) is only a label for AT (TIMESTAMP); a
+        # DB clock can skew/step, so it is not trusted for ordering. See snapshot_time().
         return text(
             f"SELECT {op} AS __op, ct.[{self.key}] AS __key, "
-            f"sys.fn_cdc_map_lsn_to_time(ct.[__$start_lsn]) AS __tt, "
-            f"ct.[__$start_lsn] AS __lsn, {proj} "
+            f"ct.[__$start_lsn] AS __tt, "
+            f"sys.fn_cdc_map_lsn_to_time(ct.[__$start_lsn]) AS __wall, {proj} "
             f"FROM cdc.fn_cdc_get_all_changes_{inst}("
             f"  CASE WHEN :wm IS NULL THEN sys.fn_cdc_get_min_lsn(:inst) "
             f"       ELSE sys.fn_cdc_increment_lsn(:wm) END, "
@@ -344,7 +349,19 @@ class CDCDriver:
             f"ORDER BY ct.[__$start_lsn], ct.[__$seqval]").bindparams(wm=watermark, inst=inst)
 
     def next_watermark(self, rows, prev):
-        return max((r["__lsn"] for r in rows), default=prev)
+        # Build the LSN -> snapshot_time map here (next_watermark sees all rows in one poll):
+        # coalesce the wallclock to a running max in LSN order, so snapshot_time is monotonic
+        # in the logical clock even if the server wallclock skewed/stepped.
+        self._time, running = {}, None
+        for r in sorted(rows, key=lambda r: r["__tt"]):
+            w = r.get("__wall")
+            if w is not None and (running is None or w > running):
+                running = w
+            self._time[r["__tt"]] = running
+        return max((r["__tt"] for r in rows), default=prev)
+
+    def snapshot_time(self, tt):
+        return getattr(self, "_time", {}).get(tt)
 
 
 class BacklogDriver:
