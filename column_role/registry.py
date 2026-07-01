@@ -17,8 +17,8 @@ import datetime as _dt
 import os
 import re
 
-from sqlalchemy import (BigInteger, Column, DateTime, MetaData, String, Table, and_, func,
-                        select, text)
+from sqlalchemy import (BigInteger, Column, DateTime, MetaData, String, Table, and_, case,
+                        func, select, text)
 
 import ducklake_oob_writer as dl
 
@@ -50,6 +50,41 @@ _PARQUET_DDL = ("dataserver VARCHAR, database VARCHAR, sample_time TIMESTAMP, "
                 "referenced_object VARCHAR, referenced_member VARCHAR")
 
 
+# --- Read 1: the schema-identity probe (the cheap LT change-feed) ---
+# One row per object: object_id (the identity LT — drop-recreate) + create/modify_date (the
+# change markers). Poll this often; do the wide column sample (Read 2, `capture`) only for
+# objects the probe shows changed. object_id is a true logical identity; the dates are
+# wallclock (fine for equality/change-detection, not trusted for ordering).
+_IDENTITY_SQL = {
+    "sqlserver": "SELECT s.name AS schema_name, o.name AS object_name, "
+                 "o.object_id AS object_id, o.create_date AS create_date, "
+                 "o.modify_date AS modify_date "
+                 "FROM sys.objects AS o JOIN sys.schemas AS s ON s.schema_id = o.schema_id "
+                 "WHERE o.type IN ('U', 'V')",
+    "postgresql": "SELECT n.nspname AS schema_name, c.relname AS object_name, "
+                  "c.oid::bigint AS object_id, NULL::timestamp AS create_date, "
+                  "NULL::timestamp AS modify_date "
+                  "FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace "
+                  "WHERE c.relkind IN ('r', 'v') AND n.nspname NOT LIKE 'pg\\_%'",
+}
+_ID_DDL = [("dataserver", "varchar"), ("database", "varchar"), ("sample_time", "timestamp"),
+           ("schema_name", "varchar"), ("object_name", "varchar"), ("object_id", "int64"),
+           ("create_date", "timestamp"), ("modify_date", "timestamp")]
+_SI = Table("schema_identity", MetaData(),
+            Column("dataserver", String), Column("database", String),
+            Column("sample_time", DateTime), Column("schema_name", String),
+            Column("object_name", String), Column("object_id", BigInteger),
+            Column("create_date", DateTime), Column("modify_date", DateTime), schema="lake")
+
+
+def capture_identity(cursor, dialect: str, dataserver: str, database: str, sample_time) -> list[tuple]:
+    """Read 1 — the cheap per-object identity/LT probe. Returns rows in `_ID_DDL` order:
+    (dataserver, database, sample_time, schema_name, object_name, object_id,
+    create_date, modify_date)."""
+    rows = cursor.execute(_IDENTITY_SQL[dialect]).fetchall()
+    return [(dataserver, database, sample_time) + tuple(r) for r in rows]
+
+
 def projection_body(dialect: str) -> str:
     """The SELECT body of the dialect's column_role view (strip the CREATE/comments/GO)."""
     raw = re.sub(r"--.*", "", open(os.path.join(_SQLDIR, f"{dialect}.sql")).read())
@@ -77,8 +112,11 @@ class Registry:
         w.init_catalog(data_path=data_path)
         w.create_table("main", "column_role", _DDL)
         w.set_partitioning("column_role", ["dataserver", "database"])
+        w.create_table("main", "schema_identity", _ID_DDL)
+        w.set_partitioning("schema_identity", ["dataserver", "database"])
         self._w = w
         os.makedirs(os.path.join(data_path, "main", "column_role"), exist_ok=True)
+        os.makedirs(os.path.join(data_path, "main", "schema_identity"), exist_ok=True)
 
     def record(self, rows: list[tuple], sample_time):
         """Write one capture (constant dataserver/database → partition values via min==max)."""
@@ -88,6 +126,52 @@ class Registry:
         pq = os.path.join(self.data_path, "main", "column_role", f"{tag}.parquet")
         dl.write_rows_parquet(_DDL, rows, pq)
         self._w.register_parquet("column_role", pq, rel_path=f"{tag}.parquet", snapshot_time=sample_time)
+
+    def record_identity(self, rows: list[tuple], sample_time):
+        """Write one identity probe (Read 1) into the schema_identity time-series."""
+        if not rows:
+            return
+        tag = f"{rows[0][0]}__{rows[0][1]}__{sample_time:%Y%m%dT%H%M%S}id".replace("/", "_")
+        pq = os.path.join(self.data_path, "main", "schema_identity", f"{tag}.parquet")
+        dl.write_rows_parquet(_ID_DDL, rows, pq)
+        self._w.register_parquet("schema_identity", pq, rel_path=f"{tag}.parquet",
+                                 snapshot_time=sample_time)
+
+    def schema_anomalies(self, dataserver: str, database: str):
+        """Detect schema events over the identity probe time-series — **order by TT
+        (sample_time), detect via the object_id LT**. Per object (schema, name): a changed
+        object_id => ``recreated`` (drop+create); a changed modify_date, same object_id =>
+        ``altered``; first sighting => ``initial``. Returns (schema_name, object_name,
+        sample_time, prev_object_id, object_id, event) for the non-``unchanged`` rows."""
+        si = _SI
+        part = [si.c.schema_name, si.c.object_name]
+        prev_oid = func.lag(si.c.object_id).over(partition_by=part, order_by=si.c.sample_time)
+        prev_mod = func.lag(si.c.modify_date).over(partition_by=part, order_by=si.c.sample_time)
+        base = (select(si.c.schema_name, si.c.object_name, si.c.sample_time, si.c.object_id,
+                       prev_oid.label("prev_oid"), si.c.modify_date, prev_mod.label("prev_mod"))
+                .where(and_(si.c.dataserver == dataserver, si.c.database == database)).subquery())
+        event = case((base.c.prev_oid.is_(None), "initial"),
+                     (base.c.object_id != base.c.prev_oid, "recreated"),
+                     (base.c.modify_date != base.c.prev_mod, "altered"),
+                     else_="unchanged")
+        ranked = select(base.c.schema_name, base.c.object_name, base.c.sample_time,
+                        base.c.prev_oid, base.c.object_id, event.label("event")).subquery()
+        stmt = (select(ranked.c.schema_name, ranked.c.object_name, ranked.c.sample_time,
+                       ranked.c.prev_oid, ranked.c.object_id, ranked.c.event)
+                .where(ranked.c.event != "unchanged")
+                .order_by(ranked.c.sample_time, ranked.c.object_name))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(stmt).fetchall()
+
+    def hwm(self, dataserver: str, database: str):
+        """The Read-2 pruning high-water mark: the latest modify_date seen for
+        (dataserver, database). Read 2 need only re-sample objects whose create/modify_date
+        exceeds this (or whose object_id is new — see schema_anomalies)."""
+        si = _SI
+        stmt = select(func.max(si.c.modify_date)).where(
+            and_(si.c.dataserver == dataserver, si.c.database == database))
+        with dl.lake_reader(f"sqlite:{self.catalog_path}", self.data_path) as conn:
+            return conn.execute(stmt).scalar()
 
     def dispose(self):
         self._eng.dispose()
