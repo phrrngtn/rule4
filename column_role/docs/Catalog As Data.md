@@ -5,7 +5,8 @@
 This is the synthesis that fell out of building the pieces. It extends the [[Column Role
 Metamodel]] from "describe the schema as data" to "describe **any** database object as data,
 capture it over time as a bitemporal replica, and never write to the source." Everything below is
-one idea wearing different hats.
+one idea wearing different hats. Its vocabulary — *yoke*, *essence*, *fixpoint* — and *why* it
+can't-not-work are worked out in the companion note [[Yoke Essence Fixpoint]].
 
 ---
 
@@ -286,5 +287,5 @@ The same third-party-registry pattern, one level up.
   ownership chain.
 - `demo_*.py` — every claim above is a green demo against a live SQL Server (gfe) + PostgreSQL.
 
-See also: [[Column Role Metamodel]], [[DuckLake OOB Writer]], [[Blobrule4 Project]],
-[[Composable Relation Builders]].
+See also: [[Yoke Essence Fixpoint]] (the conceptual companion), [[Column Role Metamodel]],
+[[DuckLake OOB Writer]], [[Blobrule4 Project]], [[Composable Relation Builders]].
