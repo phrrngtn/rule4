@@ -1,0 +1,46 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "sqlserver", "essence": "check",
+      "from_sql": "sys.check_constraints AS cc JOIN sys.objects AS o ON o.object_id = cc.parent_object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id",
+      "where_sql": null, "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver", "essence": "unique",
+      "from_sql": "sys.key_constraints AS kc JOIN sys.objects AS o ON o.object_id = kc.parent_object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.index_columns AS ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id",
+      "where_sql": "kc.type = 'UQ'", "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver", "essence": "service_broker_queue",
+      "from_sql": "sys.service_queues AS q JOIN sys.objects AS o ON o.object_id = q.object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id",
+      "where_sql": "o.is_ms_shipped = 0", "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver", "essence": "full_text",
+      "from_sql": "sys.fulltext_index_columns AS fic JOIN sys.objects AS o ON o.object_id = fic.object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.columns AS c ON c.object_id = fic.object_id AND c.column_id = fic.column_id",
+      "where_sql": null, "change_signal": "o.modify_date"
+    }
+  ],
+  "catalog_attr": [
+    {"dialect": "sqlserver", "essence": "check", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "check", "ord": 1, "attr": "object_name", "expr": "o.name"},
+    {"dialect": "sqlserver", "essence": "check", "ord": 2, "attr": "check_name", "expr": "cc.name"},
+    {"dialect": "sqlserver", "essence": "check", "ord": 3, "attr": "definition", "expr": "cc.definition"},
+
+    {"dialect": "sqlserver", "essence": "unique", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "unique", "ord": 1, "attr": "object_name", "expr": "o.name"},
+    {"dialect": "sqlserver", "essence": "unique", "ord": 2, "attr": "uq_name", "expr": "kc.name"},
+    {"dialect": "sqlserver", "essence": "unique", "ord": 3, "attr": "member_name", "expr": "c.name"},
+    {"dialect": "sqlserver", "essence": "unique", "ord": 4, "attr": "key_ordinal", "expr": "ic.key_ordinal"},
+
+    {"dialect": "sqlserver", "essence": "service_broker_queue", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "service_broker_queue", "ord": 1, "attr": "queue_name", "expr": "q.name"},
+    {"dialect": "sqlserver", "essence": "service_broker_queue", "ord": 2, "attr": "is_activation_enabled", "expr": "q.is_activation_enabled"},
+    {"dialect": "sqlserver", "essence": "service_broker_queue", "ord": 3, "attr": "is_receive_enabled", "expr": "q.is_receive_enabled"},
+
+    {"dialect": "sqlserver", "essence": "full_text", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "full_text", "ord": 1, "attr": "object_name", "expr": "o.name"},
+    {"dialect": "sqlserver", "essence": "full_text", "ord": 2, "attr": "member_name", "expr": "c.name"},
+    {"dialect": "sqlserver", "essence": "full_text", "ord": 3, "attr": "language_id", "expr": "fic.language_id"}
+  ]
+}
