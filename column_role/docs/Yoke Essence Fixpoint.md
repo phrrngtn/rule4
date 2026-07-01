@@ -16,15 +16,15 @@ Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]]
 > others. The division above is itself, in miniature, the move of §8 below — a yoke (the built
 > thing) and its projection onto authoritative relations (the formal names).
 
-> *Bare section references (§4, §5, …) point to [[Catalog As Data]]; this note's own sections are
-> marked "above" or "below."*
+> *A bare section reference points to [[Catalog As Data]]; this note's own sections are marked
+> "above" or "below."*
 
 ---
 
 ## 1. The yoke — a name for the pre-essence referent
 
-The meta-schema's job (Catalog As Data §4–6) is to project an **essence** — a chosen, *nominal*
-(Lockean) bundle of attributes — from an authoritative catalog relation. That framing immediately
+The meta-schema's job (Catalog As Data §4–6) is to project an **essence** — a chosen bundle of
+attributes (§4 below) — from an authoritative catalog relation. That framing immediately
 opens a referring problem: what do you call the thing *before* you have projected an essence onto
 it? The opaque referent on the dataserver that you point the machine at but have not yet decided
 how to define?
@@ -83,7 +83,7 @@ shared root, not a coincidence; contrast the honest non-coincidence in §9 below
 
 ## 4. Essence — nominal, not real
 
-The word carries the note's one genuine philosophical load, and it is easy to misread. An
+The word *essence* carries the note's one genuine philosophical load, and it is easy to misread. An
 **essence**, here, is the named bundle of attributes you project onto a yoke — the answer to "how,
 for now, shall we define this thing?" The apparent problem: *essence* usually means the
 **intrinsic** what-it-is a thing has independent of us, whereas ours is *chosen* and shifts with
