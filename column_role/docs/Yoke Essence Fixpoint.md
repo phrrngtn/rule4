@@ -1,6 +1,6 @@
 # Yoke, Essence, Fixpoint
 
-*Three words that name why the catalog-as-data move works, and how far the guarantee reaches. A conceptual companion to [[Catalog As Data]] (cited below as CAD).*
+*Three words that name why the catalog-as-data move works, and how far the guarantee reaches. A conceptual companion to [Catalog As Data](Catalog%20As%20Data.md) (cited below as CAD).*
 
 This note fixes vocabulary. It names the pre-essence referent (**yoke**), the projected definition (**essence**), and the structural property that makes the reflexive move sound (**fixpoint**) — and, as importantly, marks where each claim stops. Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]].
 
@@ -77,4 +77,4 @@ The `*yug-*` link in §3 is a real shared root. The following is not, and is fla
 
 ---
 
-See also: [[Catalog As Data]], [[Column Role Metamodel]], [[DuckLake OOB Writer]], [[Composable Relation Builders]].
+See also: [Catalog As Data](Catalog%20As%20Data.md), [[Column Role Metamodel]], [[DuckLake OOB Writer]], [[Composable Relation Builders]].

@@ -6,7 +6,7 @@ This is the synthesis that fell out of building the pieces. It extends the [[Col
 Metamodel]] from "describe the schema as data" to "describe **any** database object as data,
 capture it over time as a bitemporal replica, and never write to the source." Everything below is
 one idea wearing different hats. Its vocabulary — *yoke*, *essence*, *fixpoint* — and *why* it
-can't-not-work are worked out in the companion note [[Yoke Essence Fixpoint]].
+can't-not-work are worked out in the companion note [Yoke Essence Fixpoint](Yoke%20Essence%20Fixpoint.md).
 
 ---
 
@@ -30,7 +30,7 @@ deferred to a store whose temporal *selection* is also correct-by-construction (
 that axis the only thing you tune is how much you record. But the guarantee is **precise, not
 global** — it is the catalog-as-data *move*, not the value-grain engineering that carries the data
 (type mapping, value round-trip, cross-dialect manifestation), which can be wrong like anything
-else (§14; scoped carefully in [[Yoke Essence Fixpoint]] §7).
+else (§14; scoped carefully in [Yoke Essence Fixpoint](Yoke%20Essence%20Fixpoint.md) §7).
 
 ## 2. The problem it solves
 
@@ -256,7 +256,7 @@ copy of `dbo.orders`, touching the source only to *read*.
 ordinary engineering with correctness-grade failure modes: `datetime2`/`money` mapped into SQLite
 `TEXT`/`REAL`, funky values that may not round-trip, intervals that must close correctly at scale
 (§14). The turn runs the whole machine *and* marks exactly where the fixpoint's guarantee ends and
-value-grain engineering begins — the boundary drawn in [[Yoke Essence Fixpoint]] §7. (Each part —
+value-grain engineering begins — the boundary drawn in [Yoke Essence Fixpoint](Yoke%20Essence%20Fixpoint.md) §7. (Each part —
 the `ChangeTrackingDriver`, the DuckLake `HistoryReplica`, the SQLAlchemy TTST projector against
 SQLite — is built and proven; the machine *composes* to this chain.)
 
@@ -315,5 +315,5 @@ The same third-party-registry pattern, one level up.
   ownership chain.
 - `demo_*.py` — every claim above is a green demo against a live SQL Server (gfe) + PostgreSQL.
 
-See also: [[Yoke Essence Fixpoint]] (the conceptual companion), [[Column Role Metamodel]],
+See also: [Yoke Essence Fixpoint](Yoke%20Essence%20Fixpoint.md) (the conceptual companion), [[Column Role Metamodel]],
 [[DuckLake OOB Writer]], [[Blobrule4 Project]], [[Composable Relation Builders]].
