@@ -89,6 +89,20 @@ curve:
   actually requires. Dotmim.Sync gives you one product (a converged two-way replica) at one
   high provisioning cost; this gives you many, each priced to its own expressiveness.
 
+**5. The cheapest product is *metadata-only*: a virtual database.** Because reconstruction lives
+in the store, the DuckLake catalog *is* queryable metadata — table and column definitions, types,
+snapshot intervals, the Parquet file locations — and DuckDB already federates heterogeneous
+sources in place (`read_parquet`, the ODBC / nanodbc scanner, `ATTACH` of another DuckLake,
+SQLite, or PostgreSQL). So you can **cons up a DuckDB facade over a pile of heterogeneous sources
+purely by generating DDL from that metadata** — `CREATE VIEW … AS SELECT … FROM read_parquet(…)`,
+`ATTACH …` — one schema out, nothing materialised. The facade is a thin metadata projection,
+assembled by the same metadata-driven generation that produces the catalog queries. *"Give me a
+DuckDB database presenting those Parquet exports, that ODBC source, and these replicated tables as
+one schema"* becomes a **metadata-mostly operation**: read the catalog, emit the view/attach DDL,
+done. It is the cheapest product to *construct* (nothing is copied) — its runtime cost and
+expressiveness are whatever the underlying engines can push down and federate live. The heavy
+lifting — scanning, coercion, time-travel — stays in the engine; we only describe.
+
 The trade is explicit and worth stating plainly: we give up **bidirectional convergence**
 (this is read-only replication, not sync) to gain **non-intrusiveness, read-only sourcing,
 and store-deferred reconstruction**. For the problem that motivated it, that is the right
