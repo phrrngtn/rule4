@@ -1,0 +1,57 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "postgresql", "essence": "column",
+      "from_sql": "pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace JOIN pg_attribute AS a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped",
+      "where_sql": "c.relkind IN ('r','v','m','p','f') AND n.nspname NOT IN ('pg_catalog','information_schema')",
+      "change_signal": null
+    },
+    {
+      "dialect": "postgresql", "essence": "primary_key",
+      "from_sql": "pg_constraint AS con JOIN pg_class AS c ON c.oid = con.conrelid JOIN pg_namespace AS n ON n.oid = c.relnamespace CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(att, ord) JOIN pg_attribute AS a ON a.attrelid = con.conrelid AND a.attnum = k.att",
+      "where_sql": "con.contype = 'p' AND n.nspname NOT IN ('pg_catalog','information_schema')",
+      "change_signal": null
+    },
+    {
+      "dialect": "postgresql", "essence": "foreign_key",
+      "from_sql": "pg_constraint AS con JOIN pg_class AS c ON c.oid = con.conrelid JOIN pg_namespace AS n ON n.oid = c.relnamespace JOIN pg_class AS rc ON rc.oid = con.confrelid CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(att, fatt, ord) JOIN pg_attribute AS a ON a.attrelid = con.conrelid AND a.attnum = k.att JOIN pg_attribute AS fa ON fa.attrelid = con.confrelid AND fa.attnum = k.fatt",
+      "where_sql": "con.contype = 'f' AND n.nspname NOT IN ('pg_catalog','information_schema')",
+      "change_signal": null
+    },
+    {
+      "dialect": "postgresql", "essence": "index",
+      "from_sql": "pg_index AS ix JOIN pg_class AS ic ON ic.oid = ix.indexrelid JOIN pg_class AS tc ON tc.oid = ix.indrelid JOIN pg_namespace AS n ON n.oid = tc.relnamespace CROSS JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(att, ord) JOIN pg_attribute AS a ON a.attrelid = tc.oid AND a.attnum = k.att",
+      "where_sql": "NOT ix.indisprimary AND n.nspname NOT IN ('pg_catalog','information_schema')",
+      "change_signal": null
+    }
+  ],
+  "catalog_attr": [
+    {"dialect": "postgresql", "essence": "column", "ord": 0, "attr": "schema_name", "expr": "n.nspname"},
+    {"dialect": "postgresql", "essence": "column", "ord": 1, "attr": "object_name", "expr": "c.relname"},
+    {"dialect": "postgresql", "essence": "column", "ord": 2, "attr": "member_name", "expr": "a.attname"},
+    {"dialect": "postgresql", "essence": "column", "ord": 3, "attr": "ordinal", "expr": "a.attnum"},
+    {"dialect": "postgresql", "essence": "column", "ord": 4, "attr": "data_type", "expr": "format_type(a.atttypid, a.atttypmod)"},
+    {"dialect": "postgresql", "essence": "column", "ord": 5, "attr": "is_nullable", "expr": "(NOT a.attnotnull)"},
+
+    {"dialect": "postgresql", "essence": "primary_key", "ord": 0, "attr": "schema_name", "expr": "n.nspname"},
+    {"dialect": "postgresql", "essence": "primary_key", "ord": 1, "attr": "object_name", "expr": "c.relname"},
+    {"dialect": "postgresql", "essence": "primary_key", "ord": 2, "attr": "pk_name", "expr": "con.conname"},
+    {"dialect": "postgresql", "essence": "primary_key", "ord": 3, "attr": "member_name", "expr": "a.attname"},
+    {"dialect": "postgresql", "essence": "primary_key", "ord": 4, "attr": "key_ordinal", "expr": "k.ord"},
+
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 0, "attr": "schema_name", "expr": "n.nspname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 1, "attr": "object_name", "expr": "c.relname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 2, "attr": "fk_name", "expr": "con.conname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 3, "attr": "member_name", "expr": "a.attname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 4, "attr": "referenced_object", "expr": "rc.relname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 5, "attr": "referenced_member", "expr": "fa.attname"},
+    {"dialect": "postgresql", "essence": "foreign_key", "ord": 6, "attr": "on_delete", "expr": "CASE con.confdeltype WHEN 'a' THEN 'NO ACTION' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'd' THEN 'SET DEFAULT' END"},
+
+    {"dialect": "postgresql", "essence": "index", "ord": 0, "attr": "schema_name", "expr": "n.nspname"},
+    {"dialect": "postgresql", "essence": "index", "ord": 1, "attr": "object_name", "expr": "tc.relname"},
+    {"dialect": "postgresql", "essence": "index", "ord": 2, "attr": "index_name", "expr": "ic.relname"},
+    {"dialect": "postgresql", "essence": "index", "ord": 3, "attr": "member_name", "expr": "a.attname"},
+    {"dialect": "postgresql", "essence": "index", "ord": 4, "attr": "key_ordinal", "expr": "k.ord"},
+    {"dialect": "postgresql", "essence": "index", "ord": 5, "attr": "is_unique", "expr": "ix.indisunique"}
+  ]
+}

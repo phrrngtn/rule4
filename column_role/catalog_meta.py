@@ -17,6 +17,7 @@ the same DuckLake time-series it drives (schema-as-data, self-hosting).
 The split the design predicts: **curatorial** = the seed data (deciding an essence's
 catalog-table mapping); **deterministic** = this engine.
 """
+import glob
 import json
 import os
 
@@ -33,7 +34,7 @@ CATALOG_ATTR = Table(
     Column("dialect", String), Column("essence", String),
     Column("ord", Integer), Column("attr", String), Column("expr", String))
 
-_SEED = os.path.join(os.path.dirname(__file__), "catalog_seed.json")
+_SEED_GLOB = os.path.join(os.path.dirname(__file__), "catalog_seed*.json")
 
 
 def create_registry(conn):
@@ -41,14 +42,16 @@ def create_registry(conn):
     _MD.create_all(conn)
 
 
-def load(conn, path=_SEED):
-    """Populate the registry from the seed data file — the metadata is DATA, not code.
-    Bulk SA Core inserts. The registry it fills is the runtime source of truth."""
-    with open(path) as fh:
-        data = json.load(fh)
-    for tbl, key in ((CATALOG_SOURCE, "catalog_source"), (CATALOG_ATTR, "catalog_attr")):
-        if data.get(key):
-            conn.execute(tbl.insert(), data[key])
+def load(conn, paths=None):
+    """Populate the registry from the seed data files — the metadata is DATA, not code. Default
+    is every ``catalog_seed*.json`` beside this module (a base file plus per-dialect additions),
+    so **adding a dialect is a new data file, no code change**. Bulk SA Core inserts."""
+    for path in sorted(paths or glob.glob(_SEED_GLOB)):
+        with open(path) as fh:
+            data = json.load(fh)
+        for tbl, key in ((CATALOG_SOURCE, "catalog_source"), (CATALOG_ATTR, "catalog_attr")):
+            if data.get(key):
+                conn.execute(tbl.insert(), data[key])
 
 
 def generate_projection(conn, dialect, essence, *, tail=False):
