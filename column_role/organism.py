@@ -108,15 +108,43 @@ def scrape_schema(source_conn, reg_conn, dialect, schema, table, key, exclude=()
                             key=key, dialect=dialect)
 
 
+def _facet_matches(m, schema, table):
+    if m.get("object_name") != table:
+        return False
+    sc = m.get("object_schema", m.get("schema_name"))
+    return sc is None or sc == schema
+
+
+def capture_facet(writer, reg_conn, source_conn, dialect, schema, table, facet, now):
+    """Scrape a facet essence (extended_property, stats_histogram, …) for the replicated object
+    and append it as a snapshot into a ``{table}__{facet}`` DuckLake table — metadata rendered as
+    data, stamped ``captured_at`` and bitemporal (each sync is a new version). Read-only on the
+    source; a full snapshot per sync (no watermark — facets are current-state metadata)."""
+    stmt = cm.generate_projection(reg_conn, dialect, facet)
+    cols = [c.name for c in stmt.selected_columns]
+    rows = [dict(r._mapping) for r in source_conn.execute(stmt)
+            if _facet_matches(r._mapping, schema, table)]
+    ftable = f"{table}__{facet}"
+    if ftable not in {t["table_name"] for t in writer.current_tables()}:
+        writer.create_table("main", ftable, [(c, "varchar") for c in cols] + [("captured_at", "varchar")])
+    payload = [{**{c: (None if r.get(c) is None else str(r.get(c))) for c in cols},
+                "captured_at": str(now)} for r in rows]
+    if payload:
+        writer.inline_rows(ftable, payload, schema_name="main", snapshot_time=now)
+    return len(payload)
+
+
 class Replica:
-    """One replicated table: read-only source -> DuckLake TTST, state in a pluggable ControlStore."""
+    """One replicated table: read-only source -> DuckLake TTST, state in a pluggable ControlStore.
+    ``facets`` are essence names captured as metadata snapshots into the replica alongside the
+    payload each sync (extended properties, stats histograms, …)."""
 
     def __init__(self, control, reg_engine, source_engine, lake_writer, *, source, database,
-                 dialect, schema, table, key, driver, initial_watermark):
+                 dialect, schema, table, key, driver, initial_watermark, facets=()):
         self.control, self.reg, self.src = control, reg_engine, source_engine
         self.w, self.driver, self.initial_watermark = lake_writer, driver, initial_watermark
         self.source, self.database, self.dialect = source, database, dialect
-        self.schema, self.table, self.key = schema, table, key
+        self.schema, self.table, self.key, self.facets = schema, table, key, facets
 
     def sync(self, now):
         """One poll -> apply cycle. Reads the watermark from control, evolves the replica table to
@@ -132,6 +160,8 @@ class Replica:
             rep = dl.HistoryReplica(self.w, self.table, self.key)
             new_wm = cc.sync(sconn, watermark if watermark is not None else self.initial_watermark,
                              self.driver, rep, source_schema=self.schema)
+            facets = {f: capture_facet(self.w, rconn, sconn, self.dialect, self.schema, self.table,
+                                       f, now) for f in self.facets}
         self.control.set_state(*k, new_wm, fp, now)
         return {"watermark": new_wm, "first": prev_fp is None,
-                "evolved": prev_fp is not None and fp != prev_fp}
+                "evolved": prev_fp is not None and fp != prev_fp, "facets": facets}

@@ -28,9 +28,12 @@ with src.begin() as c:
     c.execute(text("CREATE TABLE dbo.wid (id INT CONSTRAINT pk_wid PRIMARY KEY, name NVARCHAR(50), updated_at DATETIME2)"))
     for i,n in [(1,'alpha'),(2,'bravo'),(3,'charlie')]:
         c.execute(text("INSERT dbo.wid (id,name,updated_at) VALUES (:i,:n,:t)"),{"i":i,"n":n,"t":T1})
+with src.begin() as c:   # give the source object a classification + stats, so the facets have something to capture
+    c.execute(text("EXEC sp_addextendedproperty @name=N'survey.classification', @value=N'dimension', @level0type=N'SCHEMA',@level0name=N'dbo',@level1type=N'TABLE',@level1name=N'wid',@level2type=N'COLUMN',@level2name=N'name'"))
+    c.execute(text("CREATE STATISTICS st_wid_id ON dbo.wid(id)"))
 
 rep=org.Replica(control, reg, src, w, source="gfe", database="rule4_test", dialect="sqlserver",
-                schema="dbo", table="wid", key="id",
+                schema="dbo", table="wid", key="id", facets=["extended_property","stats_histogram"],
                 driver=UserColumnDriver("updated_at", key="id"), initial_watermark="1900-01-01")
 logger.info("sync #1 (initial load): {}", rep.sync(now=dt.datetime(2026,7,1,9)))
 with src.begin() as c: c.execute(text("UPDATE dbo.wid SET name='BRAVO', updated_at=:t WHERE id=2"),{"t":T2})
@@ -52,6 +55,10 @@ with dl.lake_reader(cat, f"{base}/data") as lc:
         logger.info("   {}", tuple(r))
     logger.info("control (IN the replica) — the bitemporal watermark trail:")
     for r in lc.execute(text("SELECT table_name, watermark, last_sync FROM lake._sync_state ORDER BY last_sync")): logger.info("   {}", tuple(r))
+    logger.info("facet wid__extended_property — classification captured INTO the replica (latest of 3 snapshots):")
+    for r in lc.execute(text("SELECT object_type, column_name, property_name, property_value FROM lake.wid__extended_property WHERE captured_at=(SELECT MAX(captured_at) FROM lake.wid__extended_property)")): logger.info("   {}", tuple(r))
+    logger.info("facet wid__stats_histogram — data distribution captured INTO the replica (latest snapshot):")
+    for r in lc.execute(text("SELECT stats_name, step_number, range_high_key, equal_rows FROM lake.wid__stats_histogram WHERE captured_at=(SELECT MAX(captured_at) FROM lake.wid__stats_histogram) ORDER BY step_number")): logger.info("   {}", tuple(r))
 with src.connect() as c:
     cols=[r[0] for r in c.execute(text("SELECT name FROM sys.columns WHERE object_id=OBJECT_ID('dbo.wid') ORDER BY column_id"))]
 logger.info("source dbo.wid columns (read-only, NO control columns): {}", cols)
