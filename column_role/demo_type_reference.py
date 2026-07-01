@@ -11,6 +11,8 @@ import os
 import shutil
 import sqlite3
 
+from sqlalchemy import create_engine
+
 import ducklake_oob_writer as dl
 from registry import Registry, capture
 from type_reference import resolve_query, seed_into
@@ -27,7 +29,9 @@ src.commit()
 
 # column_role + type_reference in ONE metadatabase catalog
 reg = Registry(f"{BASE}/cat.sqlite", f"{BASE}/data")
-reg.record(capture(src.cursor(), "sqlite", SRV, DB, T), T)
+src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
+with src_eng.connect() as sconn:
+    reg.record(capture(sconn, "sqlite", SRV, DB, T), T)
 seed_into(reg._w, reg.data_path, T)
 
 # resolve via a JOIN — column_role ⋈ type_reference, no Python type dict (SA Core)
@@ -39,5 +43,6 @@ for obj, col, dtype, odbc, sa, dlt, xf, lob in rows:
     print(f"  {col:<8} {dtype:<9}  ->  {sa} / {dlt} / {xf or '-'}"
           f"   ({odbc}{', LOB' if lob else ''})")
 
+src_eng.dispose()
 reg.dispose()
 src.close()

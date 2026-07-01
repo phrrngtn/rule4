@@ -16,6 +16,8 @@ import os
 import shutil
 import sqlite3
 
+from sqlalchemy import create_engine
+
 import ducklake_oob_writer as dl
 from registry import Registry, capture
 from sampling import SamplingPlan, provision
@@ -35,7 +37,9 @@ src.commit()
 
 # --- (1) column_role: the schema time-series ---
 reg = Registry(f"{BASE}/reg_cat.sqlite", f"{BASE}/reg_data")
-reg.record(capture(src.cursor(), "sqlite", SRV, DB, T), T)
+src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
+with src_eng.connect() as sconn:
+    reg.record(capture(sconn, "sqlite", SRV, DB, T), T)
 
 # --- (2) sampling: the control plane (a DuckLake table that hosts its own replicas) ---
 plan = SamplingPlan(f"{BASE}/lake_cat.sqlite", f"{BASE}/lake_data")
@@ -63,6 +67,7 @@ with dl.lake_reader(f"sqlite:{BASE}/lake_cat.sqlite", f"{BASE}/lake_data") as co
     print("sampling table  (2)  : same catalog ->",
           conn.execute(select(_samp)).fetchall())
 
+src_eng.dispose()
 reg.dispose()
 plan.dispose()
 src.close()

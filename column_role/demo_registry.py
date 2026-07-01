@@ -13,6 +13,7 @@ import shutil
 import sqlite3
 
 import duckdb
+from sqlalchemy import create_engine
 
 import ducklake_oob_writer as dl
 from registry import Registry, capture
@@ -30,24 +31,32 @@ sq = sqlite3.connect(f"{BASE}/src.sqlite")
 sq.executescript("CREATE TABLE region(id INTEGER PRIMARY KEY, name TEXT);"
                  "CREATE TABLE customer(id INTEGER PRIMARY KEY, name TEXT NOT NULL,"
                  " region_id INTEGER REFERENCES region(id));")
-reg.record(capture(sq, "sqlite", "sqlite_local", "src.sqlite", T1), T1)
-sq.execute("ALTER TABLE customer ADD COLUMN email TEXT")               # schema evolves
-reg.record(capture(sq, "sqlite", "sqlite_local", "src.sqlite", T2), T2)
+sq.commit()
+sq_eng = create_engine(f"sqlite:///{BASE}/src.sqlite")
+with sq_eng.connect() as sconn:
+    reg.record(capture(sconn, "sqlite", "sqlite_local", "src.sqlite", T1), T1)
+    sq.execute("ALTER TABLE customer ADD COLUMN email TEXT")           # schema evolves
+    sq.commit()
+    reg.record(capture(sconn, "sqlite", "sqlite_local", "src.sqlite", T2), T2)
 sq.close()
+sq_eng.dispose()
 
 # --- DuckDB source: a different schema (another source in the same registry) ---
 dd = duckdb.connect(f"{BASE}/src.duckdb")
 dd.execute("CREATE TABLE sales(id BIGINT PRIMARY KEY, amount DECIMAL(10,2), ts TIMESTAMP)")
-reg.record(capture(dd, "duckdb", "duckdb_local", "src.duckdb", T1), T1)
 dd.close()
+dd_eng = create_engine(f"duckdb:///{BASE}/src.duckdb")
+with dd_eng.connect() as sconn:
+    reg.record(capture(sconn, "duckdb", "duckdb_local", "src.duckdb", T1), T1)
+dd_eng.dispose()
 
 # --- live PostgreSQL (the real heterogeneous source) ---
 try:
-    import pyodbc
-    pg = pyodbc.connect("DSN=rule4_test", timeout=10)
-    rows = capture(pg, "postgresql", "pg_localhost", "rule4_test", T1)
+    pg_eng = create_engine("postgresql+psycopg2://localhost/rule4_test")
+    with pg_eng.connect() as pgconn:
+        rows = capture(pgconn, "postgresql", "pg_localhost", "rule4_test", T1)
     reg.record(rows, T1)
-    pg.close()
+    pg_eng.dispose()
     print(f"captured live PostgreSQL rule4_test: {len(rows):,} column_role rows")
 except Exception as e:
     print("PG capture skipped:", str(e)[:90])

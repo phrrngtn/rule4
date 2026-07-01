@@ -18,7 +18,7 @@ import os
 import re
 
 from sqlalchemy import (BigInteger, Column, DateTime, Float, MetaData, String, Table, and_,
-                        case, func, select, text)
+                        bindparam, case, func, select, text)
 
 import ducklake_oob_writer as dl
 
@@ -79,11 +79,11 @@ _SI = Table("schema_identity", MetaData(),
             Column("create_date", DateTime), Column("modify_date", DateTime), schema="lake")
 
 
-def capture_identity(cursor, dialect: str, dataserver: str, database: str, sample_time) -> list[tuple]:
+def capture_identity(conn, dialect: str, dataserver: str, database: str, sample_time) -> list[tuple]:
     """Read 1 — the cheap per-object identity/LT probe. Returns rows in `_ID_DDL` order:
     (dataserver, database, sample_time, schema_name, object_name, object_id,
     create_date, modify_date)."""
-    rows = cursor.execute(_IDENTITY_SQL[dialect]).fetchall()
+    rows = conn.execute(text(_IDENTITY_SQL[dialect])).fetchall()
     return [(dataserver, database, sample_time) + tuple(r) for r in rows]
 
 
@@ -113,10 +113,11 @@ _SC = Table("sample_clock", MetaData(),
             Column("db_create_date", DateTime), Column("skew_seconds", Float), schema="lake")
 
 
-def measure_env(cursor, dialect: str, dataserver: str, database: str, sample_time, local_utc):
-    """The per-sample environment probe. ``local_utc`` = our trusted UTC captured around the
-    call. Returns one `_CLK_DDL`-shaped tuple; ``skew_seconds`` = remote_utc − local_utc."""
-    remote_utc, remote_local, db_create = cursor.execute(_ENV_SQL[dialect]).fetchone()
+def measure_env(conn, dialect: str, dataserver: str, database: str, sample_time, local_utc):
+    """The per-sample environment probe on the SA connection ``conn``. ``local_utc`` = our
+    trusted UTC captured around the call. Returns one `_CLK_DDL`-shaped tuple; ``skew_seconds``
+    = remote_utc − local_utc."""
+    remote_utc, remote_local, db_create = conn.execute(text(_ENV_SQL[dialect])).one()
     skew = (remote_utc - local_utc).total_seconds() if remote_utc and local_utc else None
     return (dataserver, database, sample_time, local_utc, remote_utc, remote_local,
             db_create, skew)
@@ -129,24 +130,27 @@ def projection_body(dialect: str) -> str:
     return re.split(r"\bGO\b", after)[0].strip().rstrip(";")
 
 
-def capture(cursor, dialect: str, dataserver: str, database: str, sample_time,
+def capture(conn, dialect: str, dataserver: str, database: str, sample_time,
             *, only=None) -> list[tuple]:
-    """Read 2 — the full column sample. Run the column_role projection on `cursor`'s source
-    and widen each row with (dataserver, database, sample_time); returns rows in `_COLS` order.
+    """Read 2 — the full column sample. Run the column_role projection on the SQLAlchemy
+    connection ``conn``'s source and widen each row with (dataserver, database, sample_time);
+    returns rows in `_COLS` order. The projection is genuinely dialect-specific SQL, so it
+    rides ``text()`` on the SA connection (not a raw driver cursor).
 
     ``only`` (a collection of object_names) **prunes** the projection to just those objects —
     the HWM/dirty-set prune: transport the wide column detail only for objects the identity
-    probe (Read 1) showed changed. The IN-list is bound (qmark), so the values are parameters."""
+    probe (Read 1) showed changed. The IN-list is an expanding bound parameter."""
     sel = ", ".join(_SUBSET)
     sql = f"SELECT {sel} FROM ( {projection_body(dialect)} ) AS t"
     if only is not None:
         only = list(only)
         if not only:
             return []
-        sql += f" WHERE t.object_name IN ({', '.join('?' for _ in only)})"
-        rows = cursor.execute(sql, only).fetchall()
+        stmt = text(sql + " WHERE t.object_name IN :names").bindparams(
+            bindparam("names", expanding=True))
+        rows = conn.execute(stmt, {"names": only}).fetchall()
     else:
-        rows = cursor.execute(sql).fetchall()
+        rows = conn.execute(text(sql)).fetchall()
     return [(dataserver, database, sample_time) + tuple(r) for r in rows]
 
 

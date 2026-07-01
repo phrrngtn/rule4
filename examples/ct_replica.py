@@ -79,11 +79,11 @@ def main():
 
     # --- poll CHANGETABLE for NET changes since the watermark, then apply ---
     new_version = cur.execute("SELECT CHANGE_TRACKING_CURRENT_VERSION()").fetchone()[0]
-    changes = cur.execute(f"""
+    changes = cur.execute("""
         SELECT ct.SYS_CHANGE_OPERATION AS op, ct.id, b.name, b.region
-        FROM CHANGETABLE(CHANGES dbo.cust, {watermark}) ct
+        FROM CHANGETABLE(CHANGES dbo.cust, ?) ct
         LEFT JOIN dbo.cust b ON b.id = ct.id
-        ORDER BY ct.id""").fetchall()
+        ORDER BY ct.id""", [watermark]).fetchall()
     print("poll: " + ", ".join(f"{c.op} id={c.id}" for c in changes))
     upserts = [{"id": c.id, "name": c.name, "region": c.region}
                for c in changes if c.op in ("I", "U")]

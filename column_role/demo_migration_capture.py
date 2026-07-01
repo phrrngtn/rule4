@@ -23,6 +23,8 @@ import shutil
 
 import pyodbc
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from column_collection import ColumnCollection
 from migration import schema_diff
@@ -58,6 +60,8 @@ def show(title, ddl):
 def main():
     src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
+    saeng = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
+    sconn = saeng.connect()
     base = "/tmp/mig_capture"
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base)
@@ -65,12 +69,12 @@ def main():
 
     # T1: create r1 and capture the live schema
     create_r1(cur, "cust")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T1), T1)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T1), T1)
 
     # T2: evolve the real table, capture again
     for alter in TO_R2:
         cur.execute(f"ALTER TABLE dbo.cust {alter}")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T2), T2)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T2), T2)
 
     # the two revisions, straight from the captures
     cc1, cc2 = cols_of(reg, "cust", T1), cols_of(reg, "cust", T2)
@@ -86,7 +90,7 @@ def main():
     generated = cc1c.migration_to(cc2c)
     for stmt in generated:
         cur.execute(stmt.rstrip(";"))
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T3), T3)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T3), T3)
 
     cc_copy = cols_of(reg, "cust_copy", T3)
     residual = schema_diff(cc_copy, cc2)   # copy-after-migration vs the real r2
@@ -96,6 +100,8 @@ def main():
 
     cur.execute("IF OBJECT_ID('dbo.cust') IS NOT NULL DROP TABLE dbo.cust")
     cur.execute("IF OBJECT_ID('dbo.cust_copy') IS NOT NULL DROP TABLE dbo.cust_copy")
+    sconn.close()
+    saeng.dispose()
     reg.dispose()
     src.close()
 

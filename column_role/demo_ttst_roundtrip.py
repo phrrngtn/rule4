@@ -105,7 +105,8 @@ def main():
     # --- schema skew: sample BOTH schemas into one column_role series, diff the data columns ---
     reg = Registry(f"{base}/reg.sqlite", f"{base}/regdata")
     T = dt.datetime(2026, 6, 30, 13)
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T, only=("widget", "widget_ttst")), T)
+    with dest.connect() as sconn:
+        reg.record(capture(sconn, "sqlserver", SERVER, DB, T, only=("widget", "widget_ttst")), T)
     s_cols = {c.name for c in ColumnCollection.from_column_role(reg, SERVER, DB, "widget", T, schema="dbo").columns}
     d_cols = {c.name for c in ColumnCollection.from_column_role(reg, SERVER, DB, "widget_ttst", T, schema="dbo").columns}
     logger.info("source cols={s}", s=sorted(s_cols))

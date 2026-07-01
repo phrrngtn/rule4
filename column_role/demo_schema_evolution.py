@@ -28,6 +28,8 @@ src = sqlite3.connect(f"{BASE}/source.sqlite")
 src.execute("CREATE TABLE widget (id INTEGER PRIMARY KEY, name TEXT)")
 src.execute("INSERT INTO widget VALUES (1, 'sprocket')")
 src.commit()
+src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
+sconn = src_eng.connect()
 
 # --- column_role registry + the DuckLake replica ---
 reg = Registry(f"{BASE}/reg_cat.sqlite", f"{BASE}/reg_data")
@@ -38,7 +40,7 @@ w.init_catalog(data_path=f"{BASE}/rep_data")
 
 # T1: capture the source schema, build the replica from it
 T1 = dt.datetime(2026, 6, 29, 10)
-reg.record(capture(src.cursor(), "sqlite", SRV, DB, T1), T1)
+reg.record(capture(sconn, "sqlite", SRV, DB, T1), T1)
 cols_t1 = desired_columns(reg, SRV, DB, "widget", T1, dialect="sqlite")
 print(f"T1  column_role says widget = {cols_t1}")
 w.create_table("main", "widget", cols_t1)
@@ -51,13 +53,15 @@ src.commit()
 
 # T2: re-capture, then reconcile the replica FROM column_role
 T2 = dt.datetime(2026, 6, 29, 11)
-reg.record(capture(src.cursor(), "sqlite", SRV, DB, T2), T2)
+reg.record(capture(sconn, "sqlite", SRV, DB, T2), T2)
 cols_t2 = desired_columns(reg, SRV, DB, "widget", T2, dialect="sqlite")
 print(f"\nT2  column_role says widget = {cols_t2}")
 added = reconcile_from_column_role(w, "widget", reg, SRV, DB, "widget", T2, snapshot_time=T2, dialect="sqlite")
 print(f"    reconcile added: {added}")
 print(f"    replica now    : {[c['column_name'] for c in w.current_columns('widget')]}")
 
+sconn.close()
+src_eng.dispose()
 reg.dispose()
 rep_eng.dispose()
 src.close()

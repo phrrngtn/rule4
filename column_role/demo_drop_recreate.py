@@ -17,6 +17,8 @@ import datetime as dt
 
 import pyodbc
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from registry import Registry, capture_identity
 
@@ -26,8 +28,8 @@ SERVER, DB = "gfe", "rule4_test"
 T1, T2, T3 = (dt.datetime(2026, 6, 30, 10), dt.datetime(2026, 6, 30, 11), dt.datetime(2026, 6, 30, 12))
 
 
-def probe(reg, cur, when):
-    reg.record_identity(capture_identity(cur, "sqlserver", SERVER, DB, when), when)
+def probe(reg, sconn, when):
+    reg.record_identity(capture_identity(sconn, "sqlserver", SERVER, DB, when), when)
 
 
 def object_id(cur):
@@ -37,6 +39,8 @@ def object_id(cur):
 def main():
     src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
+    saeng = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
+    sconn = saeng.connect()
     import shutil
     import os
     base = "/tmp/drop_recreate"
@@ -48,18 +52,18 @@ def main():
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
     cur.execute("CREATE TABLE dbo.widget (id INT PRIMARY KEY, name NVARCHAR(50))")
     oid1 = object_id(cur)
-    probe(reg, cur, T1)
+    probe(reg, sconn, T1)
 
     # T2: in-place ALTER (object_id unchanged, modify_date advances)
     cur.execute("ALTER TABLE dbo.widget ADD price MONEY")
     oid2 = object_id(cur)
-    probe(reg, cur, T2)
+    probe(reg, sconn, T2)
 
     # T3: DROP + CREATE (new object_id — same name, different physical object)
     cur.execute("DROP TABLE dbo.widget")
     cur.execute("CREATE TABLE dbo.widget (id INT PRIMARY KEY)")
     oid3 = object_id(cur)
-    probe(reg, cur, T3)
+    probe(reg, sconn, T3)
 
     logger.info("object_id over time: T1={a} T2={b} (== T1: {same}) T3={c} (!= T2: {diff})",
                 a=oid1, b=oid2, same=oid1 == oid2, c=oid3, diff=oid2 != oid3)
@@ -71,6 +75,8 @@ def main():
                         when=when, sch=sch, name=name, event=event, prev=prev_oid, cur=oid)
 
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
+    sconn.close()
+    saeng.dispose()
     reg.dispose()
     src.close()
 

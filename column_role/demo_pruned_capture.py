@@ -14,6 +14,8 @@ import shutil
 
 import pyodbc
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from registry import Registry, capture, capture_identity
 
@@ -32,6 +34,8 @@ def drop_all(cur):
 def main():
     src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
+    saeng = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
+    sconn = saeng.connect()
     base = "/tmp/pruned_capture"
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base)
@@ -41,7 +45,7 @@ def main():
     drop_all(cur)
     cur.execute("CREATE TABLE dbo.prune_a (id INT, name NVARCHAR(50))")
     cur.execute("CREATE TABLE dbo.prune_b (id INT, name NVARCHAR(50))")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T1), T1)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T1), T1)
 
     # change: add prune_c (new); DROP+CREATE prune_b (new object_id); prune_a untouched
     cur.execute("CREATE TABLE dbo.prune_c (id INT)")
@@ -49,19 +53,21 @@ def main():
     cur.execute("CREATE TABLE dbo.prune_b (id INT, sku NVARCHAR(20))")
 
     # Read 1: cheap identity probe -> dirty set (clock-independent, by object_id)
-    reg.record_identity(capture_identity(cur, "sqlserver", SERVER, DB, T2), T2)
+    reg.record_identity(capture_identity(sconn, "sqlserver", SERVER, DB, T2), T2)
     dirty = [d for d in reg.dirty_objects(SERVER, DB) if d in MINE]
     logger.info("dirty_objects (mine): {dirty}  (expect prune_b recreated + prune_c new; not prune_a)",
                 dirty=dirty)
 
     # Read 2, pruned: full column detail for ONLY the dirty objects
-    pruned = capture(cur, "sqlserver", SERVER, DB, T2, only=dirty)
+    pruned = capture(sconn, "sqlserver", SERVER, DB, T2, only=dirty)
     sampled = sorted({r[4] for r in pruned})   # object_name is index 4 (after 3 context + schema)
     logger.info("pruned Read 2 sampled objects: {sampled}", sampled=sampled)
     logger.info("prune_a re-sampled? {a}  (should be False — unchanged, wire saved)",
                 a="prune_a" in sampled)
 
     drop_all(cur)
+    sconn.close()
+    saeng.dispose()
     reg.dispose()
     src.close()
 

@@ -32,7 +32,8 @@ src.commit()
 src_eng = create_engine(f"sqlite:///{BASE}/source.sqlite")
 
 reg = Registry(f"{BASE}/reg_cat.sqlite", f"{BASE}/reg_data")
-reg.record(capture(src.cursor(), "sqlite", SRV, DB, T), T)
+with src_eng.connect() as sconn:
+    reg.record(capture(sconn, "sqlite", SRV, DB, T), T)
 cc = ColumnCollection.from_column_role(reg, SRV, DB, "widget", T, key="id", dialect="sqlite")
 print("ColumnCollection:", cc.name, [(c.name, c.source_type, c.ducklake_type) for c in cc.columns])
 

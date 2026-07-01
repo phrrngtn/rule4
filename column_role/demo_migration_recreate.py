@@ -14,6 +14,8 @@ import shutil
 
 import pyodbc
 from loguru import logger
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from column_collection import ColumnCollection
 from migration import migration_ddl
@@ -28,6 +30,8 @@ T1, T2 = dt.datetime(2026, 6, 30, 10), dt.datetime(2026, 6, 30, 11)
 def main():
     src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
+    saeng = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
+    sconn = saeng.connect()
     base = "/tmp/mig_recreate"
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base)
@@ -36,12 +40,12 @@ def main():
     # T1: create widget v1, full capture
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
     cur.execute("CREATE TABLE dbo.widget (id INT, name NVARCHAR(50))")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T1), T1)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T1), T1)
 
     # T2: DROP + CREATE (a different physical object -> new object_id), full capture
     cur.execute("DROP TABLE dbo.widget")
     cur.execute("CREATE TABLE dbo.widget (id INT, sku NVARCHAR(20), qty INT)")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, T2), T2)
+    reg.record(capture(sconn, "sqlserver", SERVER, DB, T2), T2)
 
     cc1 = ColumnCollection.from_column_role(reg, SERVER, DB, "widget", T1, schema="dbo", key="id")
     cc2 = ColumnCollection.from_column_role(reg, SERVER, DB, "widget", T2, schema="dbo", key="id")
@@ -52,6 +56,8 @@ def main():
         logger.info("  {stmt}", stmt=stmt)
 
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
+    sconn.close()
+    saeng.dispose()
     reg.dispose()
     src.close()
 
