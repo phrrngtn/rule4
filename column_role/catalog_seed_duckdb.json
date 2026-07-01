@@ -1,0 +1,42 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "duckdb", "essence": "primary_key",
+      "from_sql": "duckdb_constraints() AS con, unnest(con.constraint_column_names) WITH ORDINALITY AS k(member, ord)",
+      "where_sql": "con.constraint_type = 'PRIMARY KEY'",
+      "change_signal": null
+    },
+    {
+      "dialect": "duckdb", "essence": "foreign_key",
+      "from_sql": "duckdb_constraints() AS con",
+      "where_sql": "con.constraint_type = 'FOREIGN KEY'",
+      "change_signal": null
+    },
+    {
+      "dialect": "duckdb", "essence": "index",
+      "from_sql": "duckdb_indexes() AS ix",
+      "where_sql": "ix.is_primary = false",
+      "change_signal": null
+    }
+  ],
+  "catalog_attr": [
+    {"dialect": "duckdb", "essence": "primary_key", "ord": 0, "attr": "schema_name", "expr": "con.schema_name"},
+    {"dialect": "duckdb", "essence": "primary_key", "ord": 1, "attr": "object_name", "expr": "con.table_name"},
+    {"dialect": "duckdb", "essence": "primary_key", "ord": 2, "attr": "pk_name", "expr": "con.constraint_name"},
+    {"dialect": "duckdb", "essence": "primary_key", "ord": 3, "attr": "member_name", "expr": "k.member"},
+    {"dialect": "duckdb", "essence": "primary_key", "ord": 4, "attr": "key_ordinal", "expr": "k.ord"},
+
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 0, "attr": "schema_name", "expr": "con.schema_name"},
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 1, "attr": "object_name", "expr": "con.table_name"},
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 2, "attr": "fk_name", "expr": "con.constraint_name"},
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 3, "attr": "member_name", "expr": "unnest(con.constraint_column_names)"},
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 4, "attr": "referenced_object", "expr": "con.referenced_table"},
+    {"dialect": "duckdb", "essence": "foreign_key", "ord": 5, "attr": "referenced_member", "expr": "unnest(con.referenced_column_names)"},
+
+    {"dialect": "duckdb", "essence": "index", "ord": 0, "attr": "schema_name", "expr": "ix.schema_name"},
+    {"dialect": "duckdb", "essence": "index", "ord": 1, "attr": "object_name", "expr": "ix.table_name"},
+    {"dialect": "duckdb", "essence": "index", "ord": 2, "attr": "index_name", "expr": "ix.index_name"},
+    {"dialect": "duckdb", "essence": "index", "ord": 3, "attr": "is_unique", "expr": "ix.is_unique"},
+    {"dialect": "duckdb", "essence": "index", "ord": 4, "attr": "expressions", "expr": "ix.expressions"}
+  ]
+}
