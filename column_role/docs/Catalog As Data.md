@@ -55,8 +55,11 @@ production database), and it is the showstopper.
 
 An **essence** is a kind-of-thing you can project from a catalog (`column`, `index`,
 `primary_key`, `foreign_key`, `check`, `unique`, `extended_property`, `stats_histogram`,
-`database`, `login`, `schema`, `database_principal`, …). The registry describes, per dialect, how
-to project each one:
+`database`, `login`, `schema`, `database_principal`, …). The word is meant in **Locke's** sense —
+a *nominal* essence (the bundle of properties we attach to a name, "the workmanship of the
+understanding"), never Aristotle's intrinsic *real* essence. We only ever have the catalog's
+account of a thing, so the essence is *chosen* — and §6 turns that choosing into a dial. The
+registry describes, per dialect, how to project each one:
 
 ```
 catalog_source(dialect, essence, from_sql, where_sql, change_signal)
@@ -140,8 +143,10 @@ hex) to dodge the UTF-16 surrogate trap on non-text values.
 "It depends," and that is the point: **a thing has no canonical definition — its definition is a
 *query*.** A database is one `sys.databases` row if you're indexing it; join `sys.database_files`
 and it's a storage object; join `sys.database_principals` + permissions and it's a security object;
-add extended properties and it's classified. Same thing, different closures over the catalog.
-(Slightly ironic that we call them "essences," since the essence is *chosen*, not intrinsic.)
+add extended properties and it's classified. Same thing, different closures over the catalog. Not
+really ironic that we call them "essences," read à la Locke (§4): the *nominal* essence simply
+**is** the chosen definition — there is no accessible *real* essence of a database to be
+unfaithful to. The dial is just choosing a thin nominal essence or a thick one.
 
 Two independent knobs, which the "lens/focal-point" metaphor conflates:
 
@@ -153,6 +158,13 @@ Two independent knobs, which the "lens/focal-point" metaphor conflates:
 Less "one lens with a focal point," more a **microscope with interchangeable objectives** crossed
 with **stains**. Or, most Rule4 of all: it is just `SELECT` and `JOIN` — resolution is how many
 relations you close over, theme is which ones. Every definition is a view; none is privileged.
+
+And the limit case names itself. A **yoke** — Irish English for an under-specified thing, a
+whatchamacallit — is a thing with *no* nominal essence yet: un-named, un-projected, pure referent.
+The meta-schema is a machine for turning yokes into essences — point it at some opaque yoke on the
+dataserver and it hands back a named bundle of attributes. Rule4 as a **nominal-essence factory**:
+the certainty that it "can't not work" is the felt-sense of that machine having no failure mode
+but incompleteness — you are only ever naming what is already, authoritatively, there.
 
 ## 7. Change detection
 
