@@ -13,8 +13,8 @@ Everything here is downstream of Codd's Rule 4 and the [[Column Role Metamodel]]
 > reading of recursion, the Lockean nominal/real-essence distinction as applied here, the `*yug-*`
 > etymology — is Claude's contribution, worked out in conversation. The point of writing it down is
 > to get the words out: to SELECT the intuition into the register in which it can be handed to
-> others. The division above is itself, in miniature, the move of §7 below — a yoke (the built thing) and its
-> projection onto authoritative relations (the formal names).
+> others. The division above is itself, in miniature, the move of §8 below — a yoke (the built
+> thing) and its projection onto authoritative relations (the formal names).
 
 > *Bare section references (§4, §5, …) point to [[Catalog As Data]]; this note's own sections are
 > marked "above" or "below."*
@@ -79,9 +79,43 @@ relational data"). So the word for the unresolved referent and the operator that
 etymological cousins under *\*yug-*, "to join." In a project about Rule 4 — the catalog being Rule4
 about itself — a placeholder-word and a resolution-operator that turn out to share a root is the
 kind of self-referential rhyme the whole construction already delights in. (This one is a real
-shared root, not a coincidence; contrast the honest non-coincidence in §8 below.)
+shared root, not a coincidence; contrast the honest non-coincidence in §9 below.)
 
-## 4. Fixpoint — the term, precisely
+## 4. Essence — nominal, not real
+
+The word carries the note's one genuine philosophical load, and it is easy to misread. An
+**essence**, here, is the named bundle of attributes you project onto a yoke — the answer to "how,
+for now, shall we define this thing?" The apparent problem: *essence* usually means the
+**intrinsic** what-it-is a thing has independent of us, whereas ours is *chosen* and shifts with
+purpose (§6). That looks like a misuse of the word.
+
+It is not — once you take *essence* in **Locke's** sense rather than Aristotle's. Locke splits it in
+two:
+
+- a **real essence** — the hidden internal constitution from which a thing's observable properties
+  flow. For substances (a lump of gold, a database) it is, he insists, *inaccessible*: we never see
+  the constitution, only its effects.
+- a **nominal essence** — the abstract idea, the collection of properties, that we bundle under a
+  general name. It is, in his phrase, *"the workmanship of the understanding"* — **made** by us, not
+  discovered.
+
+Every essence in this project is a **nominal** essence. We never touch the real constitution of the
+thing on the dataserver; we project the catalog's *account* of it — the proxy row and the columns
+we choose to close over. So the word is exactly right, and the irony is only apparent: it dissolves
+the moment you stop being an Aristotelian about it. A database *has* no accessible real essence to
+be unfaithful to; the nominal essence is all there is, and it is ours to compose.
+
+This is what locks the three words together. A **yoke** is a referent with *no nominal essence yet*
+— the description withheld (§1 above). To **essence** it is to attach one: name a bundle, project
+it. And because the bundle is SELECTed from an authoritative relation rather than invented, it can
+only ever *add* truthful structure — it asserts nothing the catalog does not already hold, so it
+cannot assert a falsehood. That "can only add truth" is the seed of the **fixpoint** property
+developed next (§5–7 below): the reason essencing a yoke *can't-not-work*. And because a nominal
+essence is chosen, there is no privileged one — a thing has a *family* of nominal essences, thin to
+thick, indexed by purpose. The resolution dial (§6) is exactly the choice of *which* nominal essence
+to attach.
+
+## 5. Fixpoint — the term, precisely
 
 A **fixed point** of a function `f` is a value `x` with `f(x) = x` — the input the operation returns
 unchanged. (Iterating `cos` converges to ≈0.739, the `x` where `cos(x) = x`; the fixed points of
@@ -104,7 +138,7 @@ then a meta-meta-schema, forever. **The fixed point halts the regress** — once
 another level yields nothing new. Self-reference *plus* a fixed point is stable self-description
 instead of vicious regress. The catalog is where the tower folds into itself.
 
-## 5. Two kinds of fixpoint already in this project
+## 6. Two kinds of fixpoint already in this project
 
 The one word does two distinct jobs; separating them is most of the understanding.
 
@@ -123,7 +157,7 @@ phenomenon: the meaning of a recursive definition is the fixed point of a functi
 combinator solves `f = F(f)`). The relational model does not merely tolerate fixpoints; recursive
 querying is *defined* as one.
 
-## 6. Correct-by-construction is a fixpoint property
+## 7. Correct-by-construction is a fixpoint property
 
 The reason the pipeline "can't-not-work," with no failure mode but incompleteness, **is** the
 fixed-point property. `D` introduces no new *kind* of thing — its output is the same sort of object
@@ -132,7 +166,7 @@ in. You are not stacking a tower of models that might each mis-describe the laye
 sitting on the one object that describes itself. **"Correct-by-construction" and "fixed point" are
 the same observation stated twice.**
 
-## 7. SELECT as the transposition operator
+## 8. SELECT as the transposition operator
 
 The project's own move applies reflexively to *explaining the project*. An intuition can be a yoke:
 real, load-bearing, pointable-at, but with no representation fit for handing to others — un-named in
@@ -152,16 +186,16 @@ mode: not *wrong*, only **incomplete** — un-projected, not mis-projected. The 
 coverage: how much of what is already, authoritatively there you bother to SELECT.
 
 This is why "phase 0" — the groundwork laid so far: the mechanism built, and the move proven on the
-one referent that resisted it longest — is a starting line, not a finish. The move has now been demonstrated on the
-hardest possible referent — an inchoate, long-held, felt-but-unsayable intuition — and it still
-resolved cleanly into a communicable essence. Every data-centric problem downstream is a yoke
-sitting still on a dataserver, strictly easier than that. The operator is total on the domain of
-interest; what remains is coverage.
+one referent that resisted it longest — is a starting line, not a finish. The move has now been
+demonstrated on the hardest possible referent — an inchoate, long-held, felt-but-unsayable intuition
+— and it still resolved cleanly into a communicable essence. Every data-centric problem downstream
+is a yoke sitting still on a dataserver, strictly easier than that. The operator is total on the
+domain of interest; what remains is coverage.
 
-## 8. Honest non-coincidence
+## 9. Honest non-coincidence
 
 The `*yug-*` link in §3 above is a real shared root. The following is **not** a shared root, flagged
-precisely so it is not mistaken for one: the iterate-to fixed point (§5 above) is reached by taking
+precisely so it is not mistaken for one: the iterate-to fixed point (§6 above) is reached by taking
 **joins** — least upper bounds up a lattice. That "join" is lattice-theoretic, not SQL's relational
 JOIN. "The resolution operator is JOIN" and "the fixpoints are reached by joins" are both true, in
 two unrelated vocabularies. A genuine pun, a collision — not family.
