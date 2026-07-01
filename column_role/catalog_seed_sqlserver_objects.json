@@ -1,0 +1,43 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "sqlserver", "essence": "database",
+      "from_sql": "sys.databases AS d", "where_sql": null, "change_signal": null
+    },
+    {
+      "dialect": "sqlserver", "essence": "login",
+      "from_sql": "sys.server_principals AS sp",
+      "where_sql": "sp.type IN ('S','U','G')", "change_signal": null
+    },
+    {
+      "dialect": "sqlserver", "essence": "schema",
+      "from_sql": "sys.schemas AS s JOIN sys.database_principals AS p ON p.principal_id = s.principal_id",
+      "where_sql": null, "change_signal": null
+    },
+    {
+      "dialect": "sqlserver", "essence": "database_principal",
+      "from_sql": "sys.database_principals AS p",
+      "where_sql": "p.type IN ('S','U','G','R')", "change_signal": null
+    }
+  ],
+  "catalog_attr": [
+    {"dialect": "sqlserver", "essence": "database", "ord": 0, "attr": "database_name", "expr": "d.name"},
+    {"dialect": "sqlserver", "essence": "database", "ord": 1, "attr": "database_id", "expr": "d.database_id"},
+    {"dialect": "sqlserver", "essence": "database", "ord": 2, "attr": "state", "expr": "d.state_desc"},
+    {"dialect": "sqlserver", "essence": "database", "ord": 3, "attr": "recovery_model", "expr": "d.recovery_model_desc"},
+    {"dialect": "sqlserver", "essence": "database", "ord": 4, "attr": "collation_name", "expr": "d.collation_name"},
+
+    {"dialect": "sqlserver", "essence": "login", "ord": 0, "attr": "login_name", "expr": "sp.name"},
+    {"dialect": "sqlserver", "essence": "login", "ord": 1, "attr": "type_desc", "expr": "sp.type_desc"},
+    {"dialect": "sqlserver", "essence": "login", "ord": 2, "attr": "is_disabled", "expr": "sp.is_disabled"},
+    {"dialect": "sqlserver", "essence": "login", "ord": 3, "attr": "default_database", "expr": "sp.default_database_name"},
+
+    {"dialect": "sqlserver", "essence": "schema", "ord": 0, "attr": "schema_name", "expr": "s.name"},
+    {"dialect": "sqlserver", "essence": "schema", "ord": 1, "attr": "owner", "expr": "p.name"},
+
+    {"dialect": "sqlserver", "essence": "database_principal", "ord": 0, "attr": "principal_name", "expr": "p.name"},
+    {"dialect": "sqlserver", "essence": "database_principal", "ord": 1, "attr": "type_desc", "expr": "p.type_desc"},
+    {"dialect": "sqlserver", "essence": "database_principal", "ord": 2, "attr": "authentication_type", "expr": "p.authentication_type_desc"},
+    {"dialect": "sqlserver", "essence": "database_principal", "ord": 3, "attr": "default_schema", "expr": "p.default_schema_name"}
+  ]
+}
