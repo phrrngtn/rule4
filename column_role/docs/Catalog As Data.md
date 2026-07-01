@@ -232,6 +232,31 @@ database presenting these Parquet exports, that ODBC source, and those replicate
 schema"* is a **metadata-mostly operation** — read the catalog, emit the view/attach DDL, done.
 See [[Disaggregated Lakehouse]], [[Data As Control Plane]].
 
+### Worked example — one table: SQL Server → Change Tracking → TTST → SQLite
+
+One full turn of the machine, and where the guarantee stops. Keep a local, time-travelling SQLite
+copy of `dbo.orders`, touching the source only to *read*.
+
+1. **Yoke → essence (schema).** `dbo.orders` is a yoke — nothing projected yet. Scrape its `column`
+   essence from `sys.columns` (its proxy, §5) to shape the replica table.
+2. **Capture — Change Tracking.** CT is the source's own change-signal (§7). Poll
+   `CHANGETABLE(CHANGES dbo.orders, @since)` for each row's net after-image, stapled by
+   `SYS_CHANGE_VERSION` — a monotonic *logical* clock, ordered by it and not by wall-clock (§10).
+   The watermark `@since` lives in the replica or a registry, never the source (§8).
+3. **Reconstruct — DuckLake.** Append the after-images into a `HistoryReplica` (§9); inline MVCC
+   makes each version a bitemporal interval, time-travelled by `AT (VERSION => n)` (§10).
+4. **Manifest — SQLite.** The TTST projector reads the DuckLake history into a SQLite system-time
+   table — `valid_from`/`valid_to` intervals closed on a poll-since-HWM UPSERT. A `db′` shadow, now
+   on a second dialect.
+
+**The seam.** Steps 1–2 are the catalog-as-data move — only-incomplete, never-wrong. Steps 3–4 are
+ordinary engineering with correctness-grade failure modes: `datetime2`/`money` mapped into SQLite
+`TEXT`/`REAL`, funky values that may not round-trip, intervals that must close correctly at scale
+(§14). The turn runs the whole machine *and* marks exactly where the fixpoint's guarantee ends and
+value-grain engineering begins — the boundary drawn in [[Yoke Essence Fixpoint]] §7. (Each part —
+the `ChangeTrackingDriver`, the DuckLake `HistoryReplica`, the SQLAlchemy TTST projector against
+SQLite — is built and proven; the machine *composes* to this chain.)
+
 ## 12. Related work
 
 vs **Dotmim.Sync** and the trigger-provisioning class: (1) read-only source, nothing provisioned
