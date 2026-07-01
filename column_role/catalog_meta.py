@@ -55,7 +55,8 @@ CATALOG_JOIN = Table(
     "catalog_join", _MD,
     Column("dialect", String), Column("essence", String),
     Column("child", String), Column("parent", String),
-    Column("child_col", String), Column("parent_col", String))
+    Column("child_col", String), Column("parent_col", String),
+    Column("is_outer", Integer))   # 1 = LEFT OUTER (optional side), else INNER
 
 _SEED_GLOB = os.path.join(os.path.dirname(__file__), "catalog_seed*.json")
 
@@ -76,8 +77,10 @@ def load(conn, paths=None):
         with open(path) as fh:
             data = json.load(fh)
         for tbl, key in tables:
-            if data.get(key):
-                conn.execute(tbl.insert(), data[key])
+            batch = data.get(key)
+            if batch:
+                cols = set().union(*(row.keys() for row in batch))   # normalize optional keys
+                conn.execute(tbl.insert(), [{c: row.get(c) for c in cols} for row in batch])
 
 
 def from_clause(conn, dialect, essence):
@@ -100,11 +103,12 @@ def from_clause(conn, dialect, essence):
         keys.setdefault(k.table_name, []).append(k.col)
     # edge (child, parent) -> [(child_col, parent_col), …]: inferred from parent identity when
     # the recorded columns are NULL, else the explicit override pair(s).
-    edge_cols = {}
-    for j in conn.execute(select(CATALOG_JOIN.c.child, CATALOG_JOIN.c.parent,
-                                 CATALOG_JOIN.c.child_col, CATALOG_JOIN.c.parent_col)
+    edge_cols, edge_outer = {}, {}
+    for j in conn.execute(select(CATALOG_JOIN.c.child, CATALOG_JOIN.c.parent, CATALOG_JOIN.c.child_col,
+                                 CATALOG_JOIN.c.parent_col, CATALOG_JOIN.c.is_outer)
                           .where(and_(CATALOG_JOIN.c.dialect == dialect,
                                       CATALOG_JOIN.c.essence == essence))):
+        edge_outer[(j.child, j.parent)] = bool(j.is_outer)
         if j.child_col is None:
             edge_cols[(j.child, j.parent)] = [(c, c) for c in keys[expr_of[j.parent]]]
         else:
@@ -131,13 +135,62 @@ def from_clause(conn, dialect, essence):
                   else child if parent in placed and child not in placed else None)
             if nc is not None:
                 on = and_(*[tbls[child].c[cc] == tbls[parent].c[pc] for (cc, pc) in pairs])
-                ordered.append((nc, on)); placed.add(nc); added = True
+                ordered.append((nc, on, edge_outer[(child, parent)])); placed.add(nc); added = True
         if not added:
             raise ValueError(f"disconnected join graph for {dialect}/{essence}")
     frm = tbls[root]
-    for (alias, on) in ordered:
-        frm = frm.join(tbls[alias], on)
+    for (alias, on, outer) in ordered:
+        frm = frm.join(tbls[alias], on, isouter=outer)
     return frm
+
+
+# --- self-hosting: the registry's durable home is DuckLake — schema-as-data in the same
+#     temporal store the scraper produces (versioned, time-travelable, diffable by the same
+#     machinery). JSON seeds become a bootstrap; the lake is the source of truth. ---
+_LAKE_DDL = {
+    "catalog_source": [("dialect", "varchar"), ("essence", "varchar"), ("from_sql", "varchar"),
+                       ("where_sql", "varchar"), ("change_signal", "varchar")],
+    "catalog_attr": [("dialect", "varchar"), ("essence", "varchar"), ("ord", "int64"),
+                     ("attr", "varchar"), ("expr", "varchar")],
+    "catalog_table": [("dialect", "varchar"), ("essence", "varchar"), ("alias", "varchar"),
+                      ("expr", "varchar"), ("is_root", "int64")],
+    "catalog_join": [("dialect", "varchar"), ("essence", "varchar"), ("child", "varchar"),
+                     ("parent", "varchar"), ("child_col", "varchar"), ("parent_col", "varchar"),
+                     ("is_outer", "int64")],
+    "catalog_key": [("dialect", "varchar"), ("table_name", "varchar"), ("ord", "int64"),
+                    ("col", "varchar")],
+}
+_REG_TABLES = {"catalog_source": CATALOG_SOURCE, "catalog_attr": CATALOG_ATTR,
+               "catalog_table": CATALOG_TABLE, "catalog_join": CATALOG_JOIN, "catalog_key": CATALOG_KEY}
+
+
+def to_lake(reg_conn, writer, data_path, *, sample_time=None):
+    """Write the working registry into DuckLake — its durable, versioned home. Each registry
+    table becomes a DuckLake table; one snapshot per call, so the config itself time-travels."""
+    import ducklake_oob_writer as dl
+    existing = {t["table_name"] for t in writer.current_tables()}
+    for name, ddl in _LAKE_DDL.items():
+        if name not in existing:
+            writer.create_table("main", name, ddl)
+        os.makedirs(os.path.join(data_path, "main", name), exist_ok=True)
+        rows = [tuple(r) for r in reg_conn.execute(select(_REG_TABLES[name]))]
+        if not rows:
+            continue
+        stamp = sample_time.strftime("%Y%m%dT%H%M%S") if sample_time else "seed"
+        pq = os.path.join(data_path, "main", name, f"{name}_{stamp}.parquet")
+        dl.write_rows_parquet(ddl, rows, pq)
+        writer.register_parquet(name, pq, rel_path=os.path.basename(pq), snapshot_time=sample_time)
+
+
+def load_from_lake(reg_conn, catalog, data_path):
+    """Materialize the working registry from its DuckLake home (the inverse of to_lake) — SA
+    Core reads through the duckdb-engine lake_reader, bulk-inserted into the working registry."""
+    import ducklake_oob_writer as dl
+    with dl.lake_reader(catalog, data_path) as lc:
+        for name, tbl in _REG_TABLES.items():
+            rows = [dict(r._mapping) for r in lc.execute(select(text("*")).select_from(text(f"lake.{name}")))]
+            if rows:
+                reg_conn.execute(tbl.insert(), rows)
 
 
 def generate_projection(conn, dialect, essence, *, tail=False):
