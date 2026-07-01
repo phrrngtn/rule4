@@ -7,12 +7,15 @@ intervals as they close. Then:
 
   * as-of-latest (the open intervals) must equal the live source  -> round-trip integrity;
   * PIT reconstruction (WHERE tt_start <= @snap < tt_end) replays an earlier state -> the db'
-    time-travels *without* ever having touched the source's history;
+    time-travels *without* the source having any history feature;
   * we sample BOTH schemas (source widget + replica widget_ttst) into the same column_role
-    time-series and diff them -> the tt_* columns are the only 'skew', confirming the data
-    schema round-tripped.
+    time-series and diff them -> the tt_* columns are the only 'skew'.
 
-The tt is the DuckLake snapshot_id (the logical clock), so the HWM is skew-immune.
+The destination (the TTST) is driven entirely through the **SQLAlchemy expression language**
+(insert()/update()/select(), and a dialect-aware partial index), so it isn't SQL-Server-bound;
+the source mutations stay raw pyodbc (the experiment). The tt is the DuckLake snapshot_id (the
+logical clock), so the HWM is skew-immune.
+
 Live vs gfe. Run from column_role/:  uv run python demo_ttst_roundtrip.py
 """
 import datetime as dt
@@ -21,7 +24,8 @@ import shutil
 
 import pyodbc
 from loguru import logger
-from sqlalchemy import create_engine
+from sqlalchemy import Integer, Unicode, and_, create_engine, or_, select
+from sqlalchemy.engine import URL
 
 import ducklake_oob_writer as dl
 import ttst
@@ -30,14 +34,16 @@ from registry import Registry, capture
 
 MSSQL = ("DRIVER={ODBC Driver 18 for SQL Server};SERVER=gfe.phrrngtn.arpa;DATABASE=rule4_test;"
          "Trusted_Connection=yes;Encrypt=yes;TrustServerCertificate=yes")
-SERVER, DB, TTST = "gfe", "rule4_test", "dbo.widget_ttst"
-DL_COLS = [("id", "int64"), ("name", "varchar"), ("region", "varchar")]
-SS_COLS = [("id", "INT"), ("name", "NVARCHAR(50)"), ("region", "NVARCHAR(50)")]
+SERVER, DB = "gfe", "rule4_test"
+DL_COLS = [("id", "int64"), ("name", "varchar"), ("region", "varchar")]   # DuckLake types (inline read)
+SA_COLS = [("id", Integer), ("name", Unicode(50)), ("region", Unicode(50))]  # SA types (TTST DDL)
 
 
 def main():
     src = pyodbc.connect(MSSQL, autocommit=True, timeout=15)
     cur = src.cursor()
+    dest = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
+    tbl = ttst.ttst_table("widget_ttst", SA_COLS, schema="dbo")
     base = "/tmp/ttst_roundtrip"
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base)
@@ -48,30 +54,29 @@ def main():
     w.create_table("main", "widget", DL_COLS)
     rep = dl.HistoryReplica(w, "widget", "id")
 
-    # fresh source + TTST (db')
+    # fresh source (pyodbc experiment) + TTST via SA
     cur.execute("IF OBJECT_ID('dbo.widget_ttst') IS NOT NULL DROP TABLE dbo.widget_ttst")
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
     cur.execute("CREATE TABLE dbo.widget (id INT PRIMARY KEY, name NVARCHAR(50), region NVARCHAR(50))")
-    for stmt in ttst.create_ttst_ddl(TTST, SS_COLS, "id"):
-        cur.execute(stmt)
+    with dest.begin() as dconn:
+        ttst.create_ttst(dconn, tbl, "id")
 
     def commit(sql_changes, ops, when):
-        for s, params in sql_changes:            # keep the live source in lockstep
+        for s, params in sql_changes:            # keep the live source in lockstep (pyodbc)
             cur.execute(s, params)
         return rep.apply_commit(ops, snapshot_time=when)["snapshot_id"]
 
-    # snapshot A: insert 3 rows
-    snapA = commit(
-        [("INSERT INTO dbo.widget (id,name,region) VALUES (?,?,?)", (1, "a", "X")),
-         ("INSERT INTO dbo.widget (id,name,region) VALUES (?,?,?)", (2, "b", "X")),
-         ("INSERT INTO dbo.widget (id,name,region) VALUES (?,?,?)", (3, "c", "Y"))],
-        [{"op": "I", "key": i, "row": {"id": i, "name": n, "region": r}}
-         for i, n, r in [(1, "a", "X"), (2, "b", "X"), (3, "c", "Y")]],
-        dt.datetime(2026, 6, 30, 10))
-    r1 = ttst.sync(cur, eng, "widget", TTST, DL_COLS, "id")
-    logger.info("sync 1 @ snap {a}: {r}", a=snapA, r=r1)
+    def rows(*triples):
+        return [{"op": "I", "key": i, "row": {"id": i, "name": n, "region": r}} for i, n, r in triples]
 
-    # snapshot B: update id=2 ; snapshot C: delete id=3 + insert id=4
+    snapA = commit(
+        [("INSERT INTO dbo.widget (id,name,region) VALUES (?,?,?)", t) for t in
+         [(1, "a", "X"), (2, "b", "X"), (3, "c", "Y")]],
+        rows((1, "a", "X"), (2, "b", "X"), (3, "c", "Y")), dt.datetime(2026, 6, 30, 10))
+    with dest.begin() as dconn:
+        logger.info("sync 1 @ snap {a}: {r}", a=snapA,
+                    r=ttst.sync(dconn, eng, "widget", tbl, "id", DL_COLS))
+
     commit([("UPDATE dbo.widget SET name=? WHERE id=?", ("b2", 2))],
            [{"op": "U", "key": 2, "row": {"id": 2, "name": "b2", "region": "X"}}],
            dt.datetime(2026, 6, 30, 11))
@@ -79,28 +84,28 @@ def main():
             ("INSERT INTO dbo.widget (id,name,region) VALUES (?,?,?)", (4, "d", "W"))],
            [{"op": "D", "key": 3}, {"op": "I", "key": 4, "row": {"id": 4, "name": "d", "region": "W"}}],
            dt.datetime(2026, 6, 30, 12))
-    r2 = ttst.sync(cur, eng, "widget", TTST, DL_COLS, "id")   # incremental: only the delta
-    logger.info("sync 2 (incremental): {r}", r=r2)
+    with dest.begin() as dconn:
+        logger.info("sync 2 (incremental): {r}",
+                    r=ttst.sync(dconn, eng, "widget", tbl, "id", DL_COLS))
 
-    # --- verify round-trip: as-of-latest == live source ---
-    latest = {r[0]: (r[1], r[2]) for r in
-              cur.execute(f"SELECT id,name,region FROM {TTST} WHERE tt_end IS NULL")}
+    # --- verify via SA: as-of-latest == live source; PIT @ snapA replays the initial state ---
+    with dest.connect() as dconn:
+        latest = {r.id: (r.name, r.region) for r in
+                  dconn.execute(select(tbl.c.id, tbl.c.name, tbl.c.region).where(tbl.c.tt_end.is_(None)))}
+        pit = {r.id: r.name for r in dconn.execute(
+            select(tbl.c.id, tbl.c.name)
+            .where(and_(tbl.c.tt_start <= snapA, or_(tbl.c.tt_end > snapA, tbl.c.tt_end.is_(None))))
+            .order_by(tbl.c.id))}
     now = {r[0]: (r[1], r[2]) for r in cur.execute("SELECT id,name,region FROM dbo.widget")}
     logger.info("TTST as-of-latest : {l}", l=latest)
     logger.info("live source now   : {n}", n=now)
     logger.info("round-trip intact : {ok}", ok=latest == now)
-
-    # --- PIT reconstruction by the logical clock (snapshot_id) ---
-    pit = {r[0]: r[1] for r in cur.execute(
-        f"SELECT id,name FROM {TTST} WHERE tt_start <= ? AND (tt_end > ? OR tt_end IS NULL) ORDER BY id",
-        (snapA, snapA))}
     logger.info("PIT @ snap {a} (initial state): {p}", a=snapA, p=pit)
 
-    # --- schema skew: sample BOTH schemas into one column_role series, diff data columns ---
+    # --- schema skew: sample BOTH schemas into one column_role series, diff the data columns ---
     reg = Registry(f"{base}/reg.sqlite", f"{base}/regdata")
-    reg.record(capture(cur, "sqlserver", SERVER, DB, dt.datetime(2026, 6, 30, 13),
-                       only=("widget", "widget_ttst")), dt.datetime(2026, 6, 30, 13))
     T = dt.datetime(2026, 6, 30, 13)
+    reg.record(capture(cur, "sqlserver", SERVER, DB, T, only=("widget", "widget_ttst")), T)
     s_cols = {c.name for c in ColumnCollection.from_column_role(reg, SERVER, DB, "widget", T, schema="dbo").columns}
     d_cols = {c.name for c in ColumnCollection.from_column_role(reg, SERVER, DB, "widget_ttst", T, schema="dbo").columns}
     logger.info("source cols={s}", s=sorted(s_cols))
@@ -111,6 +116,7 @@ def main():
 
     cur.execute("IF OBJECT_ID('dbo.widget_ttst') IS NOT NULL DROP TABLE dbo.widget_ttst")
     cur.execute("IF OBJECT_ID('dbo.widget') IS NOT NULL DROP TABLE dbo.widget")
+    dest.dispose()
     eng.dispose()
     src.close()
 
