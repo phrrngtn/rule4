@@ -105,7 +105,7 @@ we choose to close over. So the word is exactly right, and the irony is only app
 the moment you stop being an Aristotelian about it. A database *has* no accessible real essence to
 be unfaithful to; the nominal essence is all there is, and it is ours to compose.
 
-This is what locks the three words together. A **yoke** is a referent with *no nominal essence yet*
+This is what binds the three words together. A **yoke** is a referent with *no nominal essence yet*
 — the description withheld (§1 above). To **essence** it is to attach one: name a bundle, project
 it. And because the bundle is SELECTed from an authoritative relation rather than invented, it can
 only ever *add* truthful structure — it asserts nothing the catalog does not already hold, so it
