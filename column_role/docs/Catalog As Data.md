@@ -26,8 +26,11 @@ This is why it *can't not work*. There is no inference, no heuristic, no model t
 **wrong** — only **incomplete** (an essence you didn't record). The single failure axis is
 **coverage, not correctness**. Contrast a sync framework, whose triggers can miss and whose
 conflict resolution can diverge: it *can* be wrong. This can only be partial. Reconstruction is
-deferred to a store that is *also* correct-by-construction (Snodgrass), so the whole pipeline is
-correct end to end, and the only thing you ever tune is how much of it you bother to capture.
+deferred to a store whose temporal *selection* is also correct-by-construction (Snodgrass); along
+that axis the only thing you tune is how much you record. But the guarantee is **precise, not
+global** — it is the catalog-as-data *move*, not the value-grain engineering that carries the data
+(type mapping, value round-trip, cross-dialect manifestation), which can be wrong like anything
+else (§14; scoped carefully in [[Yoke Essence Fixpoint]] §7).
 
 ## 2. The problem it solves
 
