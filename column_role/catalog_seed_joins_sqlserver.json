@@ -1,0 +1,26 @@
+{
+  "catalog_table": [
+    {"dialect": "sqlserver", "essence": "column", "alias": "o", "expr": "sys.objects", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "column", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "column", "alias": "c", "expr": "sys.columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "column", "alias": "ty", "expr": "sys.types", "is_root": 0},
+
+    {"dialect": "sqlserver", "essence": "index", "alias": "i", "expr": "sys.indexes", "is_root": 1},
+    {"dialect": "sqlserver", "essence": "index", "alias": "o", "expr": "sys.objects", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "index", "alias": "s", "expr": "sys.schemas", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "index", "alias": "ic", "expr": "sys.index_columns", "is_root": 0},
+    {"dialect": "sqlserver", "essence": "index", "alias": "c", "expr": "sys.columns", "is_root": 0}
+  ],
+  "catalog_join": [
+    {"dialect": "sqlserver", "essence": "column", "alias": "s", "to_alias": "o", "child_col": "schema_id", "parent_col": "schema_id"},
+    {"dialect": "sqlserver", "essence": "column", "alias": "c", "to_alias": "o", "child_col": "object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "column", "alias": "ty", "to_alias": "c", "child_col": "user_type_id", "parent_col": "user_type_id"},
+
+    {"dialect": "sqlserver", "essence": "index", "alias": "o", "to_alias": "i", "child_col": "object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "index", "alias": "s", "to_alias": "o", "child_col": "schema_id", "parent_col": "schema_id"},
+    {"dialect": "sqlserver", "essence": "index", "alias": "ic", "to_alias": "i", "child_col": "object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "index", "alias": "ic", "to_alias": "i", "child_col": "index_id", "parent_col": "index_id"},
+    {"dialect": "sqlserver", "essence": "index", "alias": "c", "to_alias": "ic", "child_col": "object_id", "parent_col": "object_id"},
+    {"dialect": "sqlserver", "essence": "index", "alias": "c", "to_alias": "ic", "child_col": "column_id", "parent_col": "column_id"}
+  ]
+}
