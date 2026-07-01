@@ -115,23 +115,29 @@ def _facet_matches(m, schema, table):
     return sc is None or sc == schema
 
 
-def capture_facet(writer, reg_conn, source_conn, dialect, schema, table, facet, now):
-    """Scrape a facet essence (extended_property, stats_histogram, …) for the replicated object
-    and append it as a snapshot into a ``{table}__{facet}`` DuckLake table — metadata rendered as
-    data, stamped ``captured_at`` and bitemporal (each sync is a new version). Read-only on the
-    source; a full snapshot per sync (no watermark — facets are current-state metadata)."""
-    stmt = cm.generate_projection(reg_conn, dialect, facet)
+def capture_essence(writer, reg_conn, source_conn, dialect, essence, now, *, keep=None, name=None):
+    """Capture a whole essence as a **bitemporal TTST snapshot** in DuckLake — logins, databases,
+    schemas, extended properties, anything the catalog describes. A snapshot per call, stamped
+    ``captured_at``; each call is a new DuckLake version, so the set-over-time time-travels and
+    diffs (EXCEPT on ``captured_at``). ``keep`` optionally filters rows (e.g. to one object);
+    ``name`` overrides the target table. Read-only on the source. Returns the row count."""
+    stmt = cm.generate_projection(reg_conn, dialect, essence)
     cols = [c.name for c in stmt.selected_columns]
-    rows = [dict(r._mapping) for r in source_conn.execute(stmt)
-            if _facet_matches(r._mapping, schema, table)]
-    ftable = f"{table}__{facet}"
-    if ftable not in {t["table_name"] for t in writer.current_tables()}:
-        writer.create_table("main", ftable, [(c, "varchar") for c in cols] + [("captured_at", "varchar")])
+    rows = [dict(r._mapping) for r in source_conn.execute(stmt) if keep is None or keep(r._mapping)]
+    tbl = name or essence
+    if tbl not in {t["table_name"] for t in writer.current_tables()}:
+        writer.create_table("main", tbl, [(c, "varchar") for c in cols] + [("captured_at", "varchar")])
     payload = [{**{c: (None if r.get(c) is None else str(r.get(c))) for c in cols},
                 "captured_at": str(now)} for r in rows]
     if payload:
-        writer.inline_rows(ftable, payload, schema_name="main", snapshot_time=now)
+        writer.inline_rows(tbl, payload, schema_name="main", snapshot_time=now)
     return len(payload)
+
+
+def capture_facet(writer, reg_conn, source_conn, dialect, schema, table, facet, now):
+    """A facet is just an essence TTST scoped to one replicated object (``{table}__{facet}``)."""
+    return capture_essence(writer, reg_conn, source_conn, dialect, facet, now,
+                           keep=lambda m: _facet_matches(m, schema, table), name=f"{table}__{facet}")
 
 
 class Replica:
