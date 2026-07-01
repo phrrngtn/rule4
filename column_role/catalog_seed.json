@@ -1,0 +1,447 @@
+{
+  "catalog_source": [
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "from_sql": "sys.objects AS o JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.columns AS c ON c.object_id = o.object_id JOIN sys.types AS ty ON ty.user_type_id = c.user_type_id",
+      "where_sql": "o.type IN ('U', 'V')",
+      "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "from_sql": "sys.indexes AS i JOIN sys.objects AS o ON o.object_id = i.object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id",
+      "where_sql": "o.type = 'U' AND i.index_id > 0 AND i.is_primary_key = 0",
+      "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "from_sql": "sys.foreign_keys AS fk JOIN sys.objects AS o ON o.object_id = fk.parent_object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.foreign_key_columns AS fkc ON fkc.constraint_object_id = fk.object_id JOIN sys.columns AS pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id JOIN sys.objects AS ro ON ro.object_id = fk.referenced_object_id JOIN sys.columns AS rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id",
+      "where_sql": null,
+      "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "from_sql": "sys.key_constraints AS kc JOIN sys.objects AS o ON o.object_id = kc.parent_object_id JOIN sys.schemas AS s ON s.schema_id = o.schema_id JOIN sys.index_columns AS ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id",
+      "where_sql": "kc.type = 'PK'",
+      "change_signal": "o.modify_date"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "from_sql": "sqlite_master AS m, pragma_table_info(m.name) AS ti",
+      "where_sql": "m.type IN ('table', 'view')",
+      "change_signal": null
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "from_sql": "sqlite_master AS m, pragma_index_list(m.name) AS il, pragma_index_info(il.name) AS ii",
+      "where_sql": "m.type = 'table' AND il.origin = 'c'",
+      "change_signal": null
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "from_sql": "sqlite_master AS m, pragma_foreign_key_list(m.name) AS fk",
+      "where_sql": "m.type = 'table'",
+      "change_signal": null
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "primary_key",
+      "from_sql": "sqlite_master AS m, pragma_table_info(m.name) AS ti",
+      "where_sql": "m.type = 'table' AND ti.pk > 0",
+      "change_signal": null
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "from_sql": "information_schema.columns AS c",
+      "where_sql": null,
+      "change_signal": null
+    }
+  ],
+  "catalog_attr": [
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "s.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "o.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 2,
+      "attr": "member_name",
+      "expr": "c.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 3,
+      "attr": "ordinal",
+      "expr": "c.column_id"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 4,
+      "attr": "data_type",
+      "expr": "ty.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "column",
+      "ord": 5,
+      "attr": "is_nullable",
+      "expr": "c.is_nullable"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "s.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "o.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 2,
+      "attr": "index_name",
+      "expr": "i.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 3,
+      "attr": "member_name",
+      "expr": "c.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 4,
+      "attr": "key_ordinal",
+      "expr": "ic.key_ordinal"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 5,
+      "attr": "is_unique",
+      "expr": "i.is_unique"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 6,
+      "attr": "is_descending",
+      "expr": "ic.is_descending_key"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "index",
+      "ord": 7,
+      "attr": "is_included",
+      "expr": "ic.is_included_column"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "s.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "o.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 2,
+      "attr": "fk_name",
+      "expr": "fk.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 3,
+      "attr": "member_name",
+      "expr": "pc.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 4,
+      "attr": "referenced_object",
+      "expr": "ro.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 5,
+      "attr": "referenced_member",
+      "expr": "rc.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "foreign_key",
+      "ord": 6,
+      "attr": "on_delete",
+      "expr": "fk.delete_referential_action_desc"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "s.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "o.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "ord": 2,
+      "attr": "pk_name",
+      "expr": "kc.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "ord": 3,
+      "attr": "member_name",
+      "expr": "c.name"
+    },
+    {
+      "dialect": "sqlserver",
+      "essence": "primary_key",
+      "ord": 4,
+      "attr": "key_ordinal",
+      "expr": "ic.key_ordinal"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "'main'"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "m.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 2,
+      "attr": "member_name",
+      "expr": "ti.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 3,
+      "attr": "ordinal",
+      "expr": "ti.cid"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 4,
+      "attr": "data_type",
+      "expr": "ti.type"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "column",
+      "ord": 5,
+      "attr": "is_nullable",
+      "expr": "NOT ti.\"notnull\""
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "'main'"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "m.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 2,
+      "attr": "index_name",
+      "expr": "il.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 3,
+      "attr": "member_name",
+      "expr": "ii.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 4,
+      "attr": "key_ordinal",
+      "expr": "ii.seqno"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "index",
+      "ord": 5,
+      "attr": "is_unique",
+      "expr": "il.\"unique\""
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "'main'"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "m.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 2,
+      "attr": "member_name",
+      "expr": "fk.\"from\""
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 3,
+      "attr": "referenced_object",
+      "expr": "fk.\"table\""
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 4,
+      "attr": "referenced_member",
+      "expr": "fk.\"to\""
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "foreign_key",
+      "ord": 5,
+      "attr": "on_delete",
+      "expr": "fk.on_delete"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "primary_key",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "'main'"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "primary_key",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "m.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "primary_key",
+      "ord": 2,
+      "attr": "member_name",
+      "expr": "ti.name"
+    },
+    {
+      "dialect": "sqlite",
+      "essence": "primary_key",
+      "ord": 3,
+      "attr": "key_ordinal",
+      "expr": "ti.pk"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 0,
+      "attr": "schema_name",
+      "expr": "c.table_schema"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 1,
+      "attr": "object_name",
+      "expr": "c.table_name"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 2,
+      "attr": "member_name",
+      "expr": "c.column_name"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 3,
+      "attr": "ordinal",
+      "expr": "c.ordinal_position"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 4,
+      "attr": "data_type",
+      "expr": "c.data_type"
+    },
+    {
+      "dialect": "duckdb",
+      "essence": "column",
+      "ord": 5,
+      "attr": "is_nullable",
+      "expr": "(c.is_nullable = 'YES')"
+    }
+  ]
+}

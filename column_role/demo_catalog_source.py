@@ -30,7 +30,7 @@ def main():
     reg = create_engine(f"sqlite:///{base}/registry.sqlite")
     with reg.begin() as rc:
         cm.create_registry(rc)
-        cm.seed(rc)
+        cm.load(rc)   # metadata is data (catalog_seed.json), loaded into the registry
 
     # --- SQLite source (self-contained) ---
     ssrc = create_engine(f"sqlite:///{base}/src.sqlite")
@@ -38,22 +38,22 @@ def main():
         c.execute(text("CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)"))
         c.execute(text("CREATE TABLE org (id INTEGER, title TEXT)"))
     with reg.connect() as rc:
-        gen_sqlite = cm.generate_projection(rc, "sqlite", "column")
-    logger.info("GENERATED (sqlite):  {sql}", sql=gen_sqlite)
+        gen_sqlite = cm.generate_projection(rc, "sqlite", "column")   # a SA select(), not a string
+    logger.info("GENERATED (sqlite):  {sql}", sql=str(gen_sqlite))
     with ssrc.connect() as c:
-        for row in c.execute(text(gen_sqlite)):
+        for row in c.execute(gen_sqlite):
             logger.info("  sqlite column-essence: {r}", r=tuple(row))
 
     # --- SQL Server source (live gfe) ---
     with reg.connect() as rc:
         gen_mssql = cm.generate_projection(rc, "sqlserver", "column")
-    logger.info("GENERATED (sqlserver): {sql}", sql=gen_mssql)
+    logger.info("GENERATED (sqlserver): {sql}", sql=str(gen_mssql))
     dest = create_engine(URL.create("mssql+pyodbc", query={"odbc_connect": MSSQL}))
     with dest.begin() as c:
         c.execute(text("IF OBJECT_ID('dbo.cat_demo') IS NOT NULL DROP TABLE dbo.cat_demo"))
         c.execute(text("CREATE TABLE dbo.cat_demo (id INT PRIMARY KEY, label NVARCHAR(50), qty MONEY)"))
     with dest.connect() as c:
-        rows = [tuple(r) for r in c.execute(text(gen_mssql)) if r.object_name == "cat_demo"]
+        rows = [tuple(r) for r in c.execute(gen_mssql) if r.object_name == "cat_demo"]
     for r in rows:
         logger.info("  sqlserver column-essence (cat_demo): {r}", r=r)
     with dest.begin() as c:
@@ -62,7 +62,7 @@ def main():
 
     # --- third dialect from the same registry, generated (not run — no duckdb source here) ---
     with reg.connect() as rc:
-        logger.info("GENERATED (duckdb):  {sql}", sql=cm.generate_projection(rc, "duckdb", "column"))
+        logger.info("GENERATED (duckdb):  {sql}", sql=str(cm.generate_projection(rc, "duckdb", "column")))
         sig = rc.execute(text("SELECT dialect, change_signal FROM catalog_source WHERE essence='column'")).all()
     logger.info("change_signal per dialect (the cheap-tailing hook): {sig}", sig=[tuple(s) for s in sig])
 
